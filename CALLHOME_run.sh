@@ -64,7 +64,7 @@ if [[ $INSTRUCTION = "diarization" ]]; then
             grep $line $FILE_LIST > $exp_dir/lists/$line".txt"
             echo "python $DIR/VBx/vbhmm.py --init $METHOD --out-rttm-dir $OUT_DIR/rttms --xvec-ark-file $xvec_dir/xvectors/$line.ark --segments-file $xvec_dir/segments/$line --plda-file $BACKEND_DIR/plda --xvec-transform $BACKEND_DIR/transform.h5 --threshold $thr --target-energy $tareng --init-smoothing $smooth --lda-dim $lda_dim --Fa $Fa --Fb $Fb --loopP $loopP" >> $TASKFILE
             printf "$line " >> $UGE_TASKFILE
-done < $FILE_LIST
+        done < $FILE_LIST
 
         printf ")\n\n" >> $UGE_TASKFILE
         if [ "$QUEUE" = "none" ]; then
@@ -77,12 +77,11 @@ done < $FILE_LIST
             nl=$(wc -l < $FILE_LIST)
             qsub -l num_proc=4,mem_free=16G,h_rt=400:00:00 -N vbxhmm -q $QUEUE -t 1:$nl -sync y -o $OUT_DIR/vbhmm.log -e $OUT_DIR/vbhmm.err $UGE_TASKFILE 
         fi
- 
-		## Score
-        cat $OUT_DIR/rttms/*.rttm > $OUT_DIR/sys.rttm
-        cat $RTTM_DIR/*.rttm > $OUT_DIR/ref.rttm
-        $DIR/dscore/score.py --collar 0.25 --ignore_overlaps -r $OUT_DIR/ref.rttm -s $OUT_DIR/sys.rttm > $OUT_DIR/result_forgiving
-        $DIR/dscore/score.py --collar 0.25 -r $OUT_DIR/ref.rttm -s $OUT_DIR/sys.rttm > $OUT_DIR/result_fair
-        $DIR/dscore/score.py --collar 0.0 -r $OUT_DIR/ref.rttm -s $OUT_DIR/sys.rttm > $OUT_DIR/result_full
-	fi
+	  fi
+	  ## Score
+    cat $OUT_DIR/rttms/*.rttm > $OUT_DIR/sys.rttm
+    cat $RTTM_DIR/*.rttm > $OUT_DIR/ref.rttm
+    $DIR/dscore/score.py --collar 0.25 --ignore_overlaps -r $OUT_DIR/ref.rttm -s $OUT_DIR/sys.rttm > $OUT_DIR/result_forgiving
+    $DIR/dscore/score.py --collar 0.25 -r $OUT_DIR/ref.rttm -s $OUT_DIR/sys.rttm > $OUT_DIR/result_fair
+    $DIR/dscore/score.py --collar 0.0 -r $OUT_DIR/ref.rttm -s $OUT_DIR/sys.rttm > $OUT_DIR/result_full
 fi
