@@ -8,7 +8,8 @@ xvec_dir=$4 # output xvectors directory
 WAV_DIR=$5 # wav files directory
 FILE_LIST=$6 # txt list of files to process
 LAB_DIR=$7 # lab files directory with VAD segments
-RTTM_DIR=$8 # reference rttm files directory
+#RTTM_DIR=$8 # reference rttm files directory
+REF_RTTM=$8
 QUEUE=${9:-none}
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -32,7 +33,7 @@ if [[ $INSTRUCTION = "xvectors" ]]; then
         bash $xvec_dir/xv_task
     else
         nl=$(wc -l < $FILE_LIST)
-        qsub -l num_proc=4,mem_free=16G,h_rt=400:00:00 -q $QUEUE -t 1:$nl -sync y -o $xvec_dir/extract.log -e $xvec_dir/extract.err $xvec_dir/uge_xv_task.sh 
+        qsub -l num_proc=4,mem_free=8G,h_rt=400:00:00 -q $QUEUE -t 1:$nl -sync y -o $xvec_dir/extract.log -e $xvec_dir/extract.err $xvec_dir/uge_xv_task.sh 
     fi
 fi
 
@@ -76,12 +77,13 @@ if [[ $INSTRUCTION = "diarization" ]]; then
             echo "file_uge=\${flist[\$((\${SGE_TASK_ID}-1))]}" >> $UGE_TASKFILE
             echo "python $DIR/VBx/vbhmm.py --init $METHOD --out-rttm-dir $OUT_DIR/rttms --xvec-ark-file $xvec_dir/xvectors/\${file_uge}.ark --segments-file $xvec_dir/segments/\${file_uge} --plda-file $BACKEND_DIR/plda --xvec-transform $BACKEND_DIR/transform.h5 --threshold $thr --target-energy $tareng --init-smoothing $smooth --lda-dim $lda_dim --Fa $Fa --Fb $Fb --loopP $loopP" >> $UGE_TASKFILE
             nl=$(wc -l < $FILE_LIST)
-            qsub -l num_proc=4,mem_free=16G,h_rt=400:00:00 -N vbxhmm -q $QUEUE -t 1:$nl -sync y -o $OUT_DIR/vbhmm.log -e $OUT_DIR/vbhmm.err $UGE_TASKFILE 
+            qsub -l num_proc=4,mem_free=8G,h_rt=400:00:00 -N vbxhmm -q $QUEUE -t 1:$nl -sync y -o $OUT_DIR/vbhmm.log -e $OUT_DIR/vbhmm.err $UGE_TASKFILE 
         fi
-	  fi
-	  ## Score
+	fi
+	## Score
     cat $OUT_DIR/rttms/*.rttm > $OUT_DIR/sys.rttm
-    cat $RTTM_DIR/*.rttm > $OUT_DIR/ref.rttm
+    #cat $RTTM_DIR/*.rttm > $OUT_DIR/ref.rttm
+    cp $REF_RTTM $OUT_DIR/ref.rttm
     $DIR/dscore/score.py --collar 0.25 --ignore_overlaps -r $OUT_DIR/ref.rttm -s $OUT_DIR/sys.rttm > $OUT_DIR/result_forgiving
     $DIR/dscore/score.py --collar 0.25 -r $OUT_DIR/ref.rttm -s $OUT_DIR/sys.rttm > $OUT_DIR/result_fair
     $DIR/dscore/score.py --collar 0.0 -r $OUT_DIR/ref.rttm -s $OUT_DIR/sys.rttm > $OUT_DIR/result_full
