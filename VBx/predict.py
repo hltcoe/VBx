@@ -18,6 +18,12 @@ import torch.backends
 import features
 from models.resnet import *
 
+# comes from pykaldi - which is only installable on linux
+from kaldi.util.table import SequentialMatrixReader
+import tempfile
+import sys
+import uuid
+
 torch.backends.cudnn.enabled = False
 
 logger = logging.getLogger(__name__)
@@ -74,8 +80,28 @@ def get_embedding(fea, model, label_name=None, input_name=None, backend='pytorch
         return spk_embeds.data.cpu().numpy()[0]
     elif backend == 'onnx':
         return model.run([label_name],
-                  {input_name: fea.astype(np.float32).transpose()
-                  [np.newaxis, :, :]})[0].squeeze()
+                         {input_name: fea.astype(np.float32).transpose()
+                         [np.newaxis, :, :]})[0].squeeze()
+
+
+def parse_kaldi_cfg(cfg_in):
+    with open(cfg_in, 'r') as f:
+        all_lines = f.readlines()
+    # remove trailing new-lines and remove comments
+    all_lines_cleaned = [x.rstrip().split('#')[0] for x in all_lines]
+    # convert to dictionary
+    cfg_dict = {}
+    for l in all_lines_cleaned:
+        l_split = l.split('=')
+        k = l_split[0].split('--')[1]
+        v = l_split[1].rstrip()
+        if v == 'true':
+            cfg_dict[k] = True
+        elif v == 'false':
+            cfg_dict[k] = False
+        else:
+            cfg_dict[k] = int(v)
+    return cfg_dict
 
 
 if __name__ == '__main__':
@@ -95,6 +121,15 @@ if __name__ == '__main__':
     parser.add_argument('--out-seg-fn', required=True, type=str, help='output segments file')
     parser.add_argument('--backend', required=False, default='pytorch', choices=['pytorch', 'onnx'],
                         help='backend that is used for x-vector extraction')
+
+    parser.add_argument('--feat-extract-engine', required=False, default='but', choices=['but', 'kaldi'],
+                        help='Which engine to use for feature extraction')
+    parser.add_argument('--kaldi-feat-extract-conf', required=False, default=None,
+                        help='.conf file to configure Kaldi feature extraction')
+    parser.add_argument('--kaldi-root-dir', required=False, type=str, default=None,
+                        help='Kaldi installation root directory')
+    parser.add_argument('--kaldi-fbank-conf', required=False, type=str, default=None,
+                        help='Configuration to extract filterbank features')
 
     args = parser.parse_args()
 
@@ -161,16 +196,71 @@ if __name__ == '__main__':
                         RC = 149
 
                         np.random.seed(3)  # for reproducibility
-                        signal = features.add_dither((signal*2**15).astype(int))
+                        signal = features.add_dither((signal * 2 ** 15).astype(int))
+
+                        if args.feat_extract_engine.lower() == 'kaldi':
+                            # add Kaldi to the sys path
+                            if args.kaldi_root_dir is None:
+                                raise ValueError("kaldi-root-dir must be specified if using "
+                                                 "Kaldi feature extraction engine")
+                            if args.kaldi_fbank_conf is None:
+                                raise ValueError("kaldi-fbank-conf must be specified if using "
+                                                 "Kaldi feature extraction engine")
+                            sys.path.append(os.path.join(args.kaldi_root_dir, 'src', 'featbin'))
+
+                            # create a temporary wav.scp for Kaldi to process the feats file
+                            f_obj, wav_scp_fname = tempfile.mkstemp(suffix='.scp', prefix='wav_', text=True)
+                            tmp_sid = str(uuid.uuid4())
+                            with open(wav_scp_fname, 'w') as ff:
+                                ff.write('%s %s' % (tmp_sid, f'{os.path.abspath(os.path.join(args.in_wav_dir, fn))}.wav'))
+                            os.close(f_obj)
+
+                            # specify the Kaldi command to extract the features
+                            kaldi_cmd = "ark:compute-fbank-feats --config=%s scp:%s ark:- | " \
+                                        "apply-cmvn-sliding --norm-vars=false --cmn-window=300 --center=true ark:- ark:- |" % \
+                                        (args.kaldi_fbank_conf, wav_scp_fname)
+
+                            # extract the feature, store in memory, and verify length of features matches the
+                            # required configuration
+                            with SequentialMatrixReader(kaldi_cmd) as f:
+                                # NOTE: a for-loop is required for using pykaldi (as far as i can tell), but
+                                #  it only runs one iteration
+                                for (feats_key, feat) in f:
+                                    assert feats_key == tmp_sid
+                                    feats_kaldi_all = np.asarray(feat)
+                                    break
+                                # ensure size of feature file is what we expect
+                                n_feats, feat_dim = feats_kaldi_all.shape
+                                fbank_config_dict = parse_kaldi_cfg(args.kaldi_fbank_conf)
+                                # 10ms kaldi default, units in ms implied by Kaldi
+                                frameshift_ms = fbank_config_dict.get('frame-shift', 10)
+
+                                frameshift_samps = int(frameshift_ms/1000. * samplerate)
+                                expected_nfeats = len(signal)/frameshift_samps
+                                nfeats_tol = 2
+                                assert abs(n_feats-expected_nfeats) < nfeats_tol, \
+                                    "Number of generated features is not within expected range!"
+
+                            # delete the temporary wav.scp file
+                            os.remove(wav_scp_fname)
 
                         for segnum in range(len(labs)):
                             seg = signal[labs[segnum, 0]:labs[segnum, 1]]
-                            if seg.shape[0] > 0.01*samplerate: # process segment only if longer than 0.01s
-                                # Mirror noverlap//2 initial and final samples
-                                seg = np.r_[seg[noverlap // 2 - 1::-1],
-                                            seg, seg[-1:-winlen // 2 - 1:-1]]
-                                fea = features.fbank_htk(seg, window, noverlap, fbank_mx, USEPOWER=True, ZMEANSOURCE=True)
-                                fea = features.cmvn_floating_kaldi(fea, LC, RC, norm_vars=False).astype(np.float32)
+                            if seg.shape[0] > 0.01 * samplerate:  # process segment only if longer than 0.01s
+                                if args.feat_extract_engine.lower() == 'but':
+                                    # Mirror noverlap//2 initial and final samples
+                                    seg = np.r_[seg[noverlap // 2 - 1::-1],
+                                                seg, seg[-1:-winlen // 2 - 1:-1]]
+                                    fea = features.fbank_htk(seg, window, noverlap, fbank_mx, USEPOWER=True,
+                                                             ZMEANSOURCE=True)
+                                    fea = features.cmvn_floating_kaldi(fea, LC, RC, norm_vars=False).astype(np.float32)
+                                elif args.feat_extract_engine.lower() == 'kaldi':
+                                    t_start = labs[segnum, 0]   # in units of seconds
+                                    t_stop = labs[segnum, 1]    # in units of seconds
+                                    start_ii = int(np.floor(t_start*samplerate))
+                                    frameshift_s = frameshift_ms/1000.
+                                    n_slices = int(np.ceil((t_stop-t_start)/frameshift_s))
+                                    fea = feats_kaldi_all[:, start_ii:start_ii+n_slices]
 
                                 slen = len(fea)
                                 start = -seg_jump
