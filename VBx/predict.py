@@ -19,6 +19,7 @@ import features
 from models.resnet import *
 
 import torchaudio
+import xvectors.gen_embed as coe_xvec_gen_embed
 
 torch.backends.cudnn.enabled = False
 
@@ -140,16 +141,25 @@ if __name__ == '__main__':
 
     model, label_name, input_name = '', None, None
 
+    use_coe_xvec = args.model_file is not None and args.feat_extraction_engine.lower() == 'kaldi'
+
     if args.backend == 'pytorch':
-        if args.model_file is not None:
-            model = torch.load(args.model_file)
+        if use_coe_xvec:
+            logger.warning('Using COE Trained XVector w/ xvectors.gen_embed')
+            # NOTE: this call current requires that the flags for load_embed_model
+            #  are correctly setup.  Need to clean this up later!
+            model = coe_xvec_gen_embed.load_embed_model(args.model_file)
             model = model.to(device)
-        elif args.model is not None and args.weights is not None:
-            model = eval(args.model)(feat_dim=args.ndim, embed_dim=args.embed_dim)
-            model = model.to(device)
-            checkpoint = torch.load(args.weights, map_location=device)
-            model.load_state_dict(checkpoint['state_dict'], strict=False)
-            model.eval()
+        else:
+            if args.model_file is not None:
+                model = torch.load(args.model_file)
+                model = model.to(device)
+            elif args.model is not None and args.weights is not None:
+                model = eval(args.model)(feat_dim=args.ndim, embed_dim=args.embed_dim)
+                model = model.to(device)
+                checkpoint = torch.load(args.weights, map_location=device)
+                model.load_state_dict(checkpoint['state_dict'], strict=False)
+                model.eval()
     elif args.backend == 'onnx':
         model = onnxruntime.InferenceSession(args.weights)
         input_name = model.get_inputs()[0].name
@@ -245,19 +255,22 @@ if __name__ == '__main__':
                                     start_ii = int(np.floor(t_start/frameshift_s))
                                     stop_ii = int(np.ceil(t_stop/frameshift_s))
                                     fea = kaldi_feats[start_ii:stop_ii, :]
-                                    print(t_start, t_stop, start_ii, stop_ii)
+                                    # print(t_start, t_stop, start_ii, stop_ii)
 
-                                print(fea.shape, type(fea))
-                                if segnum > 2:
-                                    break
+                                # print(fea.shape, type(fea))
+                                # if segnum > 2:
+                                #     break
 
                                 slen = len(fea)
                                 start = -seg_jump
 
                                 for start in range(0, slen - seg_len, seg_jump):
                                     data = fea[start:start + seg_len]
-                                    xvector = get_embedding(
-                                        data, model, label_name=label_name, input_name=input_name, backend=args.backend)
+                                    if args.feat_extraction_engine.lower() == 'but':
+                                        xvector = get_embedding(
+                                            data, model, label_name=label_name, input_name=input_name, backend=args.backend)
+                                    elif use_coe_xvec:
+                                        xvector = coe_xvec_gen_embed.gen_embed(data, model)
 
                                     key = f'{fn}_{segnum:04}-{start:08}-{(start + seg_len):08}'
                                     if np.isnan(xvector).any():
@@ -271,8 +284,11 @@ if __name__ == '__main__':
 
                                 if slen - start - seg_jump >= 10:
                                     data = fea[start + seg_jump:slen]
-                                    xvector = get_embedding(
-                                        data, model, label_name=label_name, input_name=input_name, backend=args.backend)
+                                    if args.feat_extraction_engine.lower() == 'but':
+                                        xvector = get_embedding(
+                                            data, model, label_name=label_name, input_name=input_name, backend=args.backend)
+                                    elif args.feat:
+                                        pass
 
                                     key = f'{fn}_{segnum:04}-{(start + seg_jump):08}-{slen:08}'
 
