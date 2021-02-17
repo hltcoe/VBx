@@ -79,8 +79,8 @@ if [[ $INSTRUCTION = "diarization" ]]; then
             nl=$(wc -l < $FILE_LIST)
             qsub -l num_proc=4,mem_free=8G,h_rt=400:00:00 -N vbxhmm -q $QUEUE -t 1:$nl -sync y -o $OUT_DIR/vbhmm.log -e $OUT_DIR/vbhmm.err $UGE_TASKFILE 
         fi
-	fi
-	## Score
+    fi
+    ## Score
     cat $OUT_DIR/rttms/*.rttm > $OUT_DIR/sys.rttm
     #cat $RTTM_DIR/*.rttm > $OUT_DIR/ref.rttm
     cp $REF_RTTM $OUT_DIR/ref.rttm
