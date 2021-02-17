@@ -118,7 +118,7 @@ if __name__ == '__main__':
     parser.add_argument('--backend', required=False, default='pytorch', choices=['pytorch', 'onnx'],
                         help='backend that is used for x-vector extraction')
 
-    parser.add_argument('--feat-extract-engine', required=False, default='but', choices=['but', 'kaldi'],
+    parser.add_argument('--feat-extraction-engine', required=False, default='but', choices=['but', 'kaldi'],
                         help='Which engine to use for feature extraction')
     parser.add_argument('--kaldi-fbank-conf', required=False, type=str, default=None,
                         help='Configuration to extract filterbank features')
@@ -167,8 +167,10 @@ if __name__ == '__main__':
                 for fn in file_names:
                     with Timer(f'Processing file {fn}'):
                         signal, samplerate = sf.read(f'{os.path.join(args.in_wav_dir, fn)}.wav')
-                        labs = np.atleast_2d((np.loadtxt(f'{os.path.join(args.in_lab_dir, fn)}.lab',
-                                                         usecols=(0, 1)) * samplerate).astype(int))
+                        labs_t = np.atleast_2d((np.loadtxt(f'{os.path.join(args.in_lab_dir, fn)}.lab',
+                                                         usecols=(0, 1))))
+                        labs = labs_t*samplerate
+                        labs = labs.astype(int)
                         if samplerate == 8000:
                             noverlap = 120
                             winlen = 200
@@ -187,14 +189,22 @@ if __name__ == '__main__':
                         LC = 150
                         RC = 149
 
-                        if args.feat_extract_engine.lower() == 'kaldi':
+                        if args.feat_extraction_engine.lower() == 'kaldi':
                             if args.kaldi_fbank_conf is None:
                                 raise ValueError("kaldi-fbank-conf must be specified if using "
                                                  "Kaldi feature extraction engine")
 
                             fbank_config_dict = parse_kaldi_cfg(args.kaldi_fbank_conf)
-                            kaldi_feats = torchaudio.compliance.kaldi.fbank(torch.Tensor(signal), **fbank_config_dict)
-                            # apply cmvn
+                            remove_keys = ['allow_downsample']
+                            for k in remove_keys:
+                                fbank_config_dict.pop(k, None)
+                            fbank_config_dict['sample_frequency'] = samplerate                            
+ 
+                            x = torch.Tensor(signal)
+                            if len(signal.shape) == 1:
+                                # need to add a dimension to add as the "channel"
+                                x = torch.unsqueeze(x, 0)
+                            kaldi_feats = torchaudio.compliance.kaldi.fbank(x, **fbank_config_dict)
                             #  apply-cmvn-sliding --norm-vars=false --center=true --cmn-window=300
                             #  default values for Kaldi call can be found here:
                             #  https://github.com/kaldi-asr/kaldi/blob/bcd163c5ae45a9dcc488c86e98281649b8156529/src/feat/feature-functions.h#L165
@@ -202,6 +212,7 @@ if __name__ == '__main__':
                                                                                    cmn_window=300,
                                                                                    center=True,
                                                                                    norm_vars=False)
+                            kaldi_feats = kaldi_feats.numpy()
 
                             # ensure size of feature file is what we expect
                             n_feats, feat_dim = kaldi_feats.shape
@@ -213,27 +224,32 @@ if __name__ == '__main__':
                             assert abs(n_feats-expected_nfeats) < nfeats_tol, \
                                 "Number of generated features is not within expected range!"
 
-                        else:
+                        elif args.feat_extraction_engine.lower() == 'but':
                             np.random.seed(3)  # for reproducibility
                             signal = features.add_dither((signal * 2 ** 15).astype(int))
 
                         for segnum in range(len(labs)):
                             seg = signal[labs[segnum, 0]:labs[segnum, 1]]
                             if seg.shape[0] > 0.01 * samplerate:  # process segment only if longer than 0.01s
-                                if args.feat_extract_engine.lower() == 'but':
+                                if args.feat_extraction_engine.lower() == 'but':
                                     # Mirror noverlap//2 initial and final samples
                                     seg = np.r_[seg[noverlap // 2 - 1::-1],
                                                 seg, seg[-1:-winlen // 2 - 1:-1]]
                                     fea = features.fbank_htk(seg, window, noverlap, fbank_mx, USEPOWER=True,
                                                              ZMEANSOURCE=True)
                                     fea = features.cmvn_floating_kaldi(fea, LC, RC, norm_vars=False).astype(np.float32)
-                                elif args.feat_extract_engine.lower() == 'kaldi':
-                                    t_start = labs[segnum, 0]   # in units of seconds
-                                    t_stop = labs[segnum, 1]    # in units of seconds
-                                    start_ii = int(np.floor(t_start*samplerate))
+                                elif args.feat_extraction_engine.lower() == 'kaldi':
+                                    t_start = labs_t[segnum, 0]   # in units of seconds
+                                    t_stop = labs_t[segnum, 1]    # in units of seconds
                                     frameshift_s = frameshift_ms/1000.
-                                    n_slices = int(np.ceil((t_stop-t_start)/frameshift_s))
-                                    fea = kaldi_feats[:, start_ii:start_ii+n_slices]
+                                    start_ii = int(np.floor(t_start/frameshift_s))
+                                    stop_ii = int(np.ceil(t_stop/frameshift_s))
+                                    fea = kaldi_feats[start_ii:stop_ii, :]
+                                    print(t_start, t_stop, start_ii, stop_ii)
+
+                                print(fea.shape, type(fea))
+                                if segnum > 2:
+                                    break
 
                                 slen = len(fea)
                                 start = -seg_jump
