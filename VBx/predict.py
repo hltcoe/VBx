@@ -105,7 +105,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--gpus', type=str, default='', help='use gpus (passed to CUDA_VISIBLE_DEVICES)')
     parser.add_argument('--model', required=False, type=str, default=None, help='name of the model')
-    parser.add_argument('--weights', required=True, type=str, default=None, help='path to pretrained model weights')
+    parser.add_argument('--weights', required=False, type=str, default=None, help='path to pretrained model weights')
     parser.add_argument('--model-file', required=False, type=str, default=None, help='path to model file')
     parser.add_argument('--ndim', required=False, type=int, default=64, help='dimensionality of features')
     parser.add_argument('--embed-dim', required=False, type=int, default=256, help='dimensionality of the emb')
@@ -270,7 +270,9 @@ if __name__ == '__main__':
                                         xvector = get_embedding(
                                             data, model, label_name=label_name, input_name=input_name, backend=args.backend)
                                     elif use_coe_xvec:
-                                        xvector = coe_xvec_gen_embed.gen_embed(data, model)
+                                        # ensure that data.T is what we actually expect!!
+                                        xvector = coe_xvec_gen_embed.gen_embed(data.T, model).squeeze()
+                                    #print(xvector.shape)
 
                                     key = f'{fn}_{segnum:04}-{start:08}-{(start + seg_len):08}'
                                     if np.isnan(xvector).any():
@@ -287,8 +289,9 @@ if __name__ == '__main__':
                                     if args.feat_extraction_engine.lower() == 'but':
                                         xvector = get_embedding(
                                             data, model, label_name=label_name, input_name=input_name, backend=args.backend)
-                                    elif args.feat:
-                                        pass
+                                    elif use_coe_xvec:
+                                        # ensure that data.T is what we actually expect!!
+                                        xvector = coe_xvec_gen_embed.gen_embed(data.T, model)
 
                                     key = f'{fn}_{segnum:04}-{(start + seg_jump):08}-{slen:08}'
 
