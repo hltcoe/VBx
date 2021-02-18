@@ -47,6 +47,11 @@ from diarization_lib import read_xvector_timing_dict, l2_norm, cos_similarity, t
 from kaldi_utils import read_plda
 from VB_diarization import VB_diarization
 
+import xvectors.gen_embed as coe_xvec_gen_embed
+
+import logging
+logger = logging.getLogger(__name__)
+
 
 def write_output(fp, out_labels, starts, ends):
     for label, seg_start, seg_end in zip(out_labels, starts, ends):
@@ -64,12 +69,14 @@ if __name__ == '__main__':
                              'Attention: all x-vectors from one recording must be in one ark file')
     parser.add_argument('--segments-file', required=True, type=str,
                         help='File with x-vector timing info (see diarization_lib.read_xvector_timing_dict)')
-    parser.add_argument('--xvec-transform', required=True, type=str,
+    parser.add_argument('--xvec-transform', required=False, type=str,
                         help='path to x-vector transformation h5 file')
     parser.add_argument('--plda-file', required=True, type=str,
                         help='File with PLDA model in Kaldi format used for AHC and VB-HMM x-vector clustering')
+    parser.add_argument('--plda-format', required=False, type=str, default='kaldi', choices=['kaldi', 'pytorch'],
+                        help='Format of stored PLDA, must be either kaldi or pytorch')
     parser.add_argument('--threshold', required=True, type=float, help='args.threshold (bias) used for AHC')
-    parser.add_argument('--lda-dim', required=True, type=int,
+    parser.add_argument('--lda-dim', required=False, type=int,
                         help='For VB-HMM, x-vectors are reduced to this dimensionality using LDA')
     parser.add_argument('--Fa', required=True, type=float,
                         help='Parameter of VB-HMM (see VB_diarization.VB_diarization)')
@@ -90,16 +97,41 @@ if __name__ == '__main__':
     args = parser.parse_args()
     assert 0 <= args.loopP <= 1, f'Expecting loopP between 0 and 1, got {args.loopP} instead.'
 
+    ###########
+    #### Some input validation
+    # require the LDA dimension only if the xvec-transform is defined
+    if args.xvec_transform is not None:
+        if args.lda_dim is None:
+            raise ValueError("lda-dim must be defined if xvec-transform is defined!")
+
+    if args.xvec_transform is not None and args.plda_format == 'kaldi':
+        logger.warning('xvec_transform is None but plda-format is set to `kaldi`! '
+                       'Proceeding, but did you forget to set plda-format to `pytorch`?')
+    ###########
+
     # segments file with x-vector timing information
     segs_dict = read_xvector_timing_dict(args.segments_file)
 
-    kaldi_plda = read_plda(args.plda_file)
-    plda_mu, plda_tr, plda_psi = kaldi_plda
-    W = np.linalg.inv(plda_tr.T.dot(plda_tr))
-    B = np.linalg.inv((plda_tr.T / plda_psi).dot(plda_tr))
-    acvar, wccn = eigh(B, W)
-    plda_psi = acvar[::-1]
-    plda_tr = wccn.T[::-1]
+    if args.plda_format == 'kaldi':
+        kaldi_plda = read_plda(args.plda_file)
+        plda_mu, plda_tr, plda_psi = kaldi_plda
+        W = np.linalg.inv(plda_tr.T.dot(plda_tr))
+        B = np.linalg.inv((plda_tr.T / plda_psi).dot(plda_tr))
+        acvar, wccn = eigh(B, W)
+        plda_psi = acvar[::-1]
+        plda_tr = wccn.T[::-1]
+        # plda_mu.shape = (128,)
+        # plda_psi.shape = (128,)
+        # plda_tr.shape = (128, 128)
+    elif args.plda_format == 'pytorch':
+        Ulda, d_wc, d_ac = coe_xvec_gen_embed.get_plda(args.plda_file)
+        # Ulda.shape = (128, 128)
+        # d_wc.shape = (128,)
+        # d_ac.shape = (128,)
+        # rename these variables to what is expected in the code
+        plda_tr = Ulda
+        plda_psi = d_ac
+        plda_mu = 0
 
     # Open ark file with x-vectors and in each iteration of the following for-loop
     # read a batch of x-vectors corresponding to one recording
@@ -110,11 +142,12 @@ if __name__ == '__main__':
         seg_names, xvecs = zip(*segs)
         x = np.array(xvecs)
 
-        with h5py.File(args.xvec_transform, 'r') as f:
-            mean1 = np.array(f['mean1'])
-            mean2 = np.array(f['mean2'])
-            lda = np.array(f['lda'])
-            x = l2_norm(lda.T.dot((l2_norm(x - mean1)).transpose()).transpose() - mean2)
+        if args.xvec_transform is not None:
+            with h5py.File(args.xvec_transform, 'r') as f:
+                mean1 = np.array(f['mean1'])
+                mean2 = np.array(f['mean2'])
+                lda = np.array(f['lda'])
+                x = l2_norm(lda.T.dot((l2_norm(x - mean1)).transpose()).transpose() - mean2)
 
         if args.init == 'AHC' or args.init.endswith('VB'):
             if args.init.startswith('AHC'):

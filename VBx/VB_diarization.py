@@ -38,43 +38,43 @@ def VB_diarization(X, m, iE, V, pi=None, gamma=None, maxSpeakers=10, maxIters=10
     epsilon=1e-4, loopProb=0.99, alphaQInit=1.0, ref=None,
     plot=False, minDur=1, Fa=1.0, Fb=1.0):
     """
-  This is a simplified version of speaker diarization described in:
+    This is a simplified version of speaker diarization described in:
 
-  Diez. M., Burget. L., Landini. F., Cernocky. J.
-  Analysis of Speaker Diarization based on Bayesian HMM with Eigenvoice Priors
+    Diez. M., Burget. L., Landini. F., Cernocky. J.
+    Analysis of Speaker Diarization based on Bayesian HMM with Eigenvoice Priors
 
-  Variable names and equation numbers refer to those used in the paper
+    Variable names and equation numbers refer to those used in the paper
 
-  Inputs:
-  X           - T x D array, where columns are D dimensional feature vectors for T frames
-  m           - C x D array of GMM component means
-  iE          - C x D array of GMM component inverse covariance matrix diagonals
-  V           - R x C x D array of eigenvoices
-  pi          - speaker priors, if any used for initialization
-  gamma       - frame posteriors, if any used for initialization
-  maxSpeakers - maximum number of speakers expected in the utterance
-  maxIters    - maximum number of algorithm iterations
-  epsilon     - stop iterating, if obj. fun. improvement is less than epsilon
-  loopProb    - probability of not switching speakers between frames
-  alphaQInit  - Dirichlet concentraion parameter for initializing gamma
-  ref         - T dim. integer vector with reference speaker ID (0:maxSpeakers)
+    Inputs:
+    X           - T x D array, where columns are D dimensional feature vectors for T frames
+    m           - C x D array of GMM component means
+    iE          - C x D array of GMM component inverse covariance matrix diagonals
+    V           - R x C x D array of eigenvoices
+    pi          - speaker priors, if any used for initialization
+    gamma       - frame posteriors, if any used for initialization
+    maxSpeakers - maximum number of speakers expected in the utterance
+    maxIters    - maximum number of algorithm iterations
+    epsilon     - stop iterating, if obj. fun. improvement is less than epsilon
+    loopProb    - probability of not switching speakers between frames
+    alphaQInit  - Dirichlet concentraion parameter for initializing gamma
+    ref         - T dim. integer vector with reference speaker ID (0:maxSpeakers)
                 per frame
-  plot        - if set to True, plot per-frame speaker posteriors.
-  minDur      - minimum number of frames between speaker turns imposed by linear
+    plot        - if set to True, plot per-frame speaker posteriors.
+    minDur      - minimum number of frames between speaker turns imposed by linear
                 chains of HMM states corresponding to each speaker. All the states
                 in a chain share the same output distribution
-  Fa          - scale sufficient statiscits collected using UBM
-  Fb          - speaker regularization coefficient Fb (controls final # of speaker)
+    Fa          - scale sufficient statiscits collected using UBM
+    Fb          - speaker regularization coefficient Fb (controls final # of speaker)
 
-   Outputs:
-   gamma  - S x T matrix of posteriors attribution each frame to one of S possible
+    Outputs:
+    gamma  - S x T matrix of posteriors attribution each frame to one of S possible
         speakers, where S is given by opts.maxSpeakers
-   pi - S dimensional column vector of ML learned speaker priors. Ideally, these
+    pi - S dimensional column vector of ML learned speaker priors. Ideally, these
         should allow to estimate # of speaker in the utterance as the
         probabilities of the redundant speaker should converge to zero.
-   Li - values of auxiliary function (and DER and frame cross-entropy between gamma  
+    Li - values of auxiliary function (and DER and frame cross-entropy between gamma
         and reference if 'ref' is provided) over iterations.
-  """
+    """
 
     D = X.shape[1]  # feature dimensionality
     R = V.shape[0]  # subspace rank
