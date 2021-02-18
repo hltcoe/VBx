@@ -4,8 +4,14 @@
 # @Authors: Federico Landini
 # @Emails: landini@fit.vutbr.cz
 
+# LOGIC
+#  if model is a filename, weights is ignored and backend is assumed to be torch
+#  if model is a string and weights is a file:
+#       backend is assumed to be torch if weights ends in .pth
+#       backend is assumed to be onnx if weights ends in .onnx
+
 MODEL=$1
-WEIGHTS=$2   # ignored if backend is pytorch
+WEIGHTS=$2
 WAV_DIR=$3
 LAB_DIR=$4
 FILE_LIST=$5
@@ -24,7 +30,20 @@ EMBED_DIM=${10:-256}  # xvector embedding dimension
 if [ -f "$MODEL" ]; then
   backend=pytorch
 else
-  backend=onnx
+  if [ -f "$WEIGHTS" ]; then
+    weights_nopath=$(basename -- "$WEIGHTS")
+    weights_ext="${weights_nopath##*.}"
+    if [[ "$weights_ext" == "onnx" ]]; then
+      backend=onnx
+    elif [[ "$weights_ext" == "pth" || "$weights_ext" == "pt" ]]; then
+      backend=pytorch
+    else
+      echo "Model weights file specified ("$WEIGHTS") is not recognized as ONNX or PyTorch!"
+      exit -1
+  else
+    echo "Model specified is a string, but weights is not a .pth or .onnx - don't know how to proceed!"
+    exit -1
+  fi
 fi
 if [[ "$FEAT_EXTRACT_ENGINE" == "kaldi" ]]; then
   if [ ! -f "$KALDI_FBANK_CONF" ]; then
