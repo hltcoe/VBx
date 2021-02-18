@@ -5,14 +5,35 @@
 # @Emails: landini@fit.vutbr.cz
 
 MODEL=$1
-WEIGHTS=$2
+WEIGHTS=$2   # ignored if backend is pytorch
 WAV_DIR=$3
 LAB_DIR=$4
 FILE_LIST=$5
 OUT_DIR=$6
 DEVICE=$7
 
-EMBED_DIM=256
+FEAT_EXTRACT_ENGINE=${8:-but}  # can be but or kaldi
+KALDI_FBANK_CONF=${9:-none}
+EMBED_DIM=${10:-256}  # xvector embedding dimension
+
+# Error Checking for Input
+# if the input is an ONNX model, then MODEL is a string defining the architecture
+# and WEIGHTS is the file of weights
+# if the input is a PyTorch model, MODEL is a path to the model
+# and WEIGHTS will be ignored
+if [ -f "$MODEL" ]; then
+  backend=pytorch
+else
+  backend=onnx
+fi
+if [[ "$FEAT_EXTRACT_ENGINE" == "kaldi" ]]; then
+  if [ ! -f "$KALDI_FBANK_CONF" ]; then
+    echo "KALDI_FBANK_CONF must be specified when FEAT_EXTRACT_ENGINE=kaldi"
+    exit -1
+  fi
+fi
+
+
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 mkdir -pv $OUT_DIR
@@ -41,9 +62,17 @@ while IFS= read -r line; do
     mkdir -p "$(dirname $OUT_ARK_FILE)"
     mkdir -p "$(dirname $OUT_SEG_FILE)"
     if [[ "$DEVICE" == "gpu" ]]; then
-    	echo "python $DIR/predict.py --seg-len 144 --seg-jump 24 --model $MODEL --weights $WEIGHTS --gpus=\$($DIR/free_gpu.sh) $MDL_WEIGHTS --ndim 64 --embed-dim $EMBED_DIM --in-file-list $OUT_DIR/lists/$line".txt" --in-lab-dir $LAB_DIR --in-wav-dir $WAV_DIR --out-ark-fn $OUT_ARK_FILE --out-seg-fn $OUT_SEG_FILE" >> $TASKFILE
+      if [[ "$backend" == "onnx" ]]; then
+    	  echo "python $DIR/predict.py --seg-len 144 --seg-jump 24 --model $MODEL --weights $WEIGHTS --backend onnx --feat-extraction-engine $FEAT_EXTRACT_ENGINE --gpus=\$($DIR/free_gpu.sh) --ndim 64 --embed-dim $EMBED_DIM --in-file-list $OUT_DIR/lists/$line".txt" --in-lab-dir $LAB_DIR --in-wav-dir $WAV_DIR --out-ark-fn $OUT_ARK_FILE --out-seg-fn $OUT_SEG_FILE" >> $TASKFILE
+    	else
+    	  echo "python $DIR/predict.py --seg-len 144 --seg-jump 24 --model-file $MODEL --backend pytorch --feat-extraction-engine $FEAT_EXTRACT_ENGINE --kaldi-fbank-conf $KALDI_FBANK_CONF --gpus=\$($DIR/free_gpu.sh) --ndim 64 --embed-dim $EMBED_DIM --in-file-list $OUT_DIR/lists/$line".txt" --in-lab-dir $LAB_DIR --in-wav-dir $WAV_DIR --out-ark-fn $OUT_ARK_FILE --out-seg-fn $OUT_SEG_FILE" >> $TASKFILE
+    	fi
     else
-    	echo "python $DIR/predict.py --seg-len 144 --seg-jump 24 --model $MODEL --weights $WEIGHTS --gpus= $MDL_WEIGHTS --ndim 64 --embed-dim $EMBED_DIM --in-file-list $OUT_DIR/lists/$line".txt" --in-lab-dir $LAB_DIR --in-wav-dir $WAV_DIR --out-ark-fn $OUT_ARK_FILE --out-seg-fn $OUT_SEG_FILE" >> $TASKFILE
+      if [[ "$backend" == "onnx" ]]; then
+    	  echo "python $DIR/predict.py --seg-len 144 --seg-jump 24 --model $MODEL --weights $WEIGHTS --backend onnx --feat-extraction-engine $FEAT_EXTRACT_ENGINE --ndim 64 --embed-dim $EMBED_DIM --in-file-list $OUT_DIR/lists/$line".txt" --in-lab-dir $LAB_DIR --in-wav-dir $WAV_DIR --out-ark-fn $OUT_ARK_FILE --out-seg-fn $OUT_SEG_FILE" >> $TASKFILE
+    	else
+    	  echo "python $DIR/predict.py --seg-len 144 --seg-jump 24 --model-file $MODEL --backend pytorch --feat-extraction-engine $FEAT_EXTRACT_ENGINE --kaldi-fbank-conf $KALDI_FBANK_CONF --ndim 64 --embed-dim $EMBED_DIM --in-file-list $OUT_DIR/lists/$line".txt" --in-lab-dir $LAB_DIR --in-wav-dir $WAV_DIR --out-ark-fn $OUT_ARK_FILE --out-seg-fn $OUT_SEG_FILE" >> $TASKFILE
+    	fi
     fi
 done < $FILE_LIST
 
@@ -53,5 +82,9 @@ printf ")\n\n" >> $UGE_TASKFILE
 echo "file_uge=\${flist[\$((\${SGE_TASK_ID}-1))]}" >> $UGE_TASKFILE
 echo "out_ark_file_uge=$OUT_DIR/xvectors/\${file_uge}.ark" >> $UGE_TASKFILE
 echo "out_seg_file_uge=$OUT_DIR/segments/\${file_uge}" >> $UGE_TASKFILE
-echo "python $DIR/predict.py --seg-len 144 --seg-jump 24 --model $MODEL --weights $WEIGHTS --gpus= $MDL_WEIGHTS --ndim 64 --embed-dim $EMBED_DIM --in-file-list $OUT_DIR/lists/\${file_uge}".txt" --in-lab-dir $LAB_DIR --in-wav-dir $WAV_DIR --out-ark-fn \$out_ark_file_uge --out-seg-fn \$out_seg_file_uge" >> $UGE_TASKFILE
+if [[ "$backend" == "onnx" ]]; then
+  echo "python $DIR/predict.py --seg-len 144 --seg-jump 24 --model $MODEL --weights $WEIGHTS --backend onnx --feat-extraction-engine $FEAT_EXTRACT_ENGINE --ndim 64 --embed-dim $EMBED_DIM --in-file-list $OUT_DIR/lists/\${file_uge}".txt" --in-lab-dir $LAB_DIR --in-wav-dir $WAV_DIR --out-ark-fn \$out_ark_file_uge --out-seg-fn \$out_seg_file_uge" >> $UGE_TASKFILE
+else
+  echo "python $DIR/predict.py --seg-len 144 --seg-jump 24 --model-file $MODEL --backend pytorch --feat-extraction-engine $FEAT_EXTRACT_ENGINE --kaldi-fbank-conf $KALDI_FBANK_CONF --ndim 64 --embed-dim $EMBED_DIM --in-file-list $OUT_DIR/lists/\${file_uge}".txt" --in-lab-dir $LAB_DIR --in-wav-dir $WAV_DIR --out-ark-fn \$out_ark_file_uge --out-seg-fn \$out_seg_file_uge" >> $UGE_TASKFILE
+fi
 

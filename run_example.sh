@@ -16,18 +16,21 @@ do
           --out-ark-fn exp/${filename}.ark \
           --out-seg-fn exp/${filename}.seg \
           --model-file /expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test/models/checkpoint-epoch400.pth \
+          --embed-dim 128 \
           --backend pytorch \
           --feat-extraction-engine kaldi \
           --kaldi-fbank-conf /expscratch/kkarra/train_egs/fbank_8k.conf
  
           # using COE xvectors 
           #--model-file /expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test/models/checkpoint-epoch400.pth \
+          #--embed-dim 128 \
           #--backend pytorch \
           #--feat-extraction-engine kaldi \
           #--kaldi-fbank-conf /expscratch/kkarra/train_egs/fbank_8k.conf
           # 
           # using BUT xvectors
           #--weights VBx/models/ResNet101_16kHz/nnet/final.onnx \
+          #--embed-dim 256 \
           #--backend onnx \
  
       # run variational bayes on top of x-vectors
