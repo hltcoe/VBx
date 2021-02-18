@@ -42,6 +42,7 @@ else
     else
       echo "Model weights file specified ("$WEIGHTS") is not recognized as ONNX or PyTorch!"
       exit -1
+    fi
   else
     echo "Model specified is a string, but weights is not a .pth or .onnx - don't know how to proceed!"
     exit -1
