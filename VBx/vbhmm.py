@@ -131,7 +131,7 @@ if __name__ == '__main__':
         # rename these variables to what is expected in the code
         plda_tr = Ulda
         plda_psi = d_ac
-        plda_mu = 0
+        plda_mu = np.zeros_like(d_ac)
 
     # Open ark file with x-vectors and in each iteration of the following for-loop
     # read a batch of x-vectors corresponding to one recording
@@ -164,13 +164,20 @@ if __name__ == '__main__':
                 qinit = np.zeros((len(labels1st), np.max(labels1st) + 1))
                 qinit[range(len(labels1st)), labels1st] = 1.0
                 qinit = softmax(qinit * args.init_smoothing, axis=1)
-                fea = (x - plda_mu).dot(plda_tr.T)[:, :args.lda_dim]
+                fea = (x - plda_mu).dot(plda_tr.T)
                 # Use VB-HMM for x-vector clustering. Instead of i-vector extractor model, we use PLDA
                 # => GMM with only 1 component, V derived accross-class covariance,
                 # and iE is inverse within-class covariance (i.e. identity)
-                sm = np.zeros(args.lda_dim)
-                siE = np.ones(args.lda_dim)
-                sV = np.sqrt(plda_psi[:args.lda_dim])
+                if args.lda_dim is not None:
+                    fea = fea[:,:args.lda_dim]
+                    # Default - BUT algorithm
+                    sm = np.zeros(args.lda_dim)
+                    siE = np.ones(args.lda_dim)
+                    sV = np.sqrt(plda_psi[:args.lda_dim])
+                else:
+                    sm = plda_mu
+                    siE = np.ones_like(sm)
+                    sV = np.sqrt(plda_psi)
                 q, sp, L = VB_diarization(
                     fea, sm, np.diag(siE), np.diag(sV),
                     pi=None, gamma=qinit, maxSpeakers=qinit.shape[1],
