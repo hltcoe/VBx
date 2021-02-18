@@ -129,7 +129,10 @@ if __name__ == '__main__':
         # d_wc.shape = (128,)
         # d_ac.shape = (128,)
         # rename these variables to what is expected in the code
-        plda_tr = Ulda
+        # TODO: verify this!!!
+        #  1 - if I define plda_tr = Ulda, in the example wav file, I get a DER of 8.12
+        #  2 - if I define plda_tr = Ulda.T, in the example wav file, I get a DER of 2.14 !!
+        plda_tr = Ulda.T
         plda_psi = d_ac
         plda_mu = np.zeros_like(d_ac)
 

@@ -20,6 +20,7 @@ from models.resnet import *
 
 import torchaudio
 import xvectors.gen_embed as coe_xvec_gen_embed
+from tqdm.auto import tqdm
 
 torch.backends.cudnn.enabled = False
 
@@ -238,7 +239,7 @@ if __name__ == '__main__':
                             np.random.seed(3)  # for reproducibility
                             signal = features.add_dither((signal * 2 ** 15).astype(int))
 
-                        for segnum in range(len(labs)):
+                        for segnum in tqdm(range(len(labs))):
                             seg = signal[labs[segnum, 0]:labs[segnum, 1]]
                             if seg.shape[0] > 0.01 * samplerate:  # process segment only if longer than 0.01s
                                 if args.feat_extraction_engine.lower() == 'but':
