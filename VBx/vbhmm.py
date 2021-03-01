@@ -61,7 +61,7 @@ def write_output(fp, out_labels, starts, ends):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--init', required=True, type=str, choices=['AHC', 'AHC+VB'],
+    parser.add_argument('--init', required=True, type=str, choices=['AHC', 'AHC+VB', 'GMM', 'AHC+GMM'],
                         help='AHC for using only AHC or AHC+VB for VB-HMM after AHC initilization', )
     parser.add_argument('--out-rttm-dir', required=True, type=str, help='Directory to store output rttm files')
     parser.add_argument('--xvec-ark-file', required=True, type=str,
@@ -152,7 +152,8 @@ if __name__ == '__main__':
                 lda = np.array(f['lda'])
                 x = l2_norm(lda.T.dot((l2_norm(x - mean1)).transpose()).transpose() - mean2)
 
-        if args.init == 'AHC' or args.init.endswith('VB'):
+        labels1st = None
+        if args.init == 'AHC' or args.init.endswith('VB') or args.init.endswith('GMM'):
             if args.init.startswith('AHC'):
                 # Kaldi-like AHC of x-vectors (scr_mx is matrix of pairwise
                 # similarities between all x-vectors)
@@ -161,6 +162,7 @@ if __name__ == '__main__':
                 thr, junk = twoGMMcalib_lin(scr_mx.ravel())
                 # output "labels" is an integer vector of speaker (cluster) ids
                 labels1st = AHC(scr_mx, thr + args.threshold)
+
             if args.init.endswith('VB'):
                 # Smooth the hard labels obtained from AHC to soft assignments
                 # of x-vectors to speakers
@@ -181,6 +183,7 @@ if __name__ == '__main__':
                     sm = plda_mu
                     siE = np.ones_like(sm)
                     sV = np.sqrt(plda_psi)
+
                 q, sp, L = VB_diarization(
                     fea, sm, np.diag(siE), np.diag(sV),
                     pi=None, gamma=qinit, maxSpeakers=qinit.shape[1],
@@ -190,6 +193,15 @@ if __name__ == '__main__':
                 labels1st = np.argsort(-q, axis=1)[:, 0]
                 if q.shape[1] > 1:
                     labels2nd = np.argsort(-q, axis=1)[:, 1]
+            elif args.init.endswith('GMM'):
+                if labels1st is None:
+                    M = 7
+                else:
+                    M = len(np.unique(labels1st))
+                fea = (x - plda_mu).dot(plda_tr.T)[:, :args.lda_dim]
+                #labels1st = em_gmm_clean(x.T, W, B, M=M, r=0.9, num_iter=30, init_labels=labels1st)
+                labels1st = em_gmm_clean(fea.T, np.ones(args.lda_dim), plda_psi[:args.lda_dim],
+                                         M=M, r=0.9, num_iter=30, init_labels=labels1st)
         else:
             raise ValueError('Wrong option for args.initialization.')
 
