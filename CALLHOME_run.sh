@@ -48,8 +48,8 @@ if [[ $INSTRUCTION = "diarization" ]]; then
     echo "#!/bin/bash" >> $UGE_TASKFILE
     echo ". /etc/profile.d/modules.sh" >> $UGE_TASKFILE
     echo "module load cuda11.0/blas/11.0.3 cuda11.0/toolkit/11.0.3 cudnn/8.0.2_cuda11.0"
-    echo "source deactivate" >> $UGE_TASKFILE
-    echo "source activate xvec" >> $UGE_TASKFILE
+    echo "conda deactivate" >> $UGE_TASKFILE
+    echo "conda activate xvec" >> $UGE_TASKFILE
     printf "flist=(" >> $UGE_TASKFILE
 
     thr=-0.015

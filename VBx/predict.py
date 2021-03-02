@@ -138,6 +138,7 @@ if __name__ == '__main__':
         initialize_gpus(args)
         device = torch.device(device='cuda')
     else:
+        logger.info('Using CPU for XVector extraction!')
         device = torch.device(device='cpu')
 
     model, label_name, input_name = '', None, None
@@ -149,8 +150,7 @@ if __name__ == '__main__':
             logger.warning('Using COE Trained XVector w/ xvectors.gen_embed')
             # NOTE: this call current requires that the flags for load_embed_model
             #  are correctly setup.  Need to clean this up later!
-            model = coe_xvec_gen_embed.load_embed_model(args.model_file)
-            model = model.to(device)
+            model = coe_xvec_gen_embed.load_embed_model(args.model_file, device=device)
         else:
             if args.model_file is not None:
                 model = torch.load(args.model_file)
