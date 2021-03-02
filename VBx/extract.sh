@@ -71,8 +71,8 @@ rm -f $UGE_TASKFILE
 
 echo "#!/bin/bash" >> $UGE_TASKFILE
 echo ". /etc/profile.d/modules.sh" >> $UGE_TASKFILE
-echo "conda deactivate" >> $UGE_TASKFILE
-echo "conda activate xvec" >> $UGE_TASKFILE
+echo "source deactivate" >> $UGE_TASKFILE
+echo "source activate xvec" >> $UGE_TASKFILE
 printf "flist=(" >> $UGE_TASKFILE
 
 
