@@ -124,6 +124,7 @@ if __name__ == '__main__':
         # plda_psi.shape = (128,)
         # plda_tr.shape = (128, 128)
     elif args.plda_format == 'pytorch':
+        os.environ["CUDA_VISIBLE_DEVICES"] = ""
         Ulda, d_wc, d_ac = coe_xvec_gen_embed.get_plda(args.plda_file)
         # Ulda.shape = (128, 128)
         # d_wc.shape = (128,)

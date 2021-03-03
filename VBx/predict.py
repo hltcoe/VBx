@@ -21,6 +21,7 @@ from models.resnet import *
 import torchaudio
 import xvectors.gen_embed as coe_xvec_gen_embed
 from tqdm.auto import tqdm
+import socket
 
 torch.backends.cudnn.enabled = False
 
@@ -140,6 +141,9 @@ if __name__ == '__main__':
     else:
         logger.info('Using CPU for XVector extraction!')
         device = torch.device(device='cpu')
+        os.environ["CUDA_VISIBLE_DEVICES"] = ""
+
+    logger.info('Running on: ' + str(socket.gethostname()))
 
     model, label_name, input_name = '', None, None
 
@@ -151,6 +155,7 @@ if __name__ == '__main__':
             # NOTE: this call current requires that the flags for load_embed_model
             #  are correctly setup.  Need to clean this up later!
             model = coe_xvec_gen_embed.load_embed_model(args.model_file, device=device)
+            model = model.to(device)
         else:
             if args.model_file is not None:
                 model = torch.load(args.model_file)
@@ -275,7 +280,6 @@ if __name__ == '__main__':
                                     elif use_coe_xvec:
                                         # ensure that data.T is what we actually expect!!
                                         xvector = coe_xvec_gen_embed.gen_embed(data.T, model).squeeze()
-                                    #print(xvector.shape)
 
                                     key = f'{fn}_{segnum:04}-{start:08}-{(start + seg_len):08}'
                                     if np.isnan(xvector).any():
