@@ -48,6 +48,7 @@ from kaldi_utils import read_plda
 from VB_diarization import VB_diarization
 
 import xvectors.gen_embed as coe_xvec_gen_embed
+import em_gmm_clean
 
 import logging
 logger = logging.getLogger(__name__)
@@ -201,8 +202,8 @@ if __name__ == '__main__':
                     M = len(np.unique(labels1st))
                 fea = (x - plda_mu).dot(plda_tr.T)[:, :args.lda_dim]
                 #labels1st = em_gmm_clean(x.T, W, B, M=M, r=0.9, num_iter=30, init_labels=labels1st)
-                labels1st = em_gmm_clean(fea.T, np.ones(args.lda_dim), plda_psi[:args.lda_dim],
-                                         M=M, r=0.9, num_iter=30, init_labels=labels1st)
+                labels1st = em_gmm_clean.em_gmm_clean(fea.T, np.ones(args.lda_dim), plda_psi[:args.lda_dim],
+                                                      M=M, r=0.9, num_iter=30, init_labels=labels1st)
         else:
             raise ValueError('Wrong option for args.initialization.')
 
