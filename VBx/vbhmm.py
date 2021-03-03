@@ -68,12 +68,22 @@ if __name__ == '__main__':
     parser.add_argument('--xvec-ark-file', required=True, type=str,
                         help='Kaldi ark file with x-vectors from one or more input recordings. '
                              'Attention: all x-vectors from one recording must be in one ark file')
+    parser.add_argument('--xvec-ark-file2', required=False, type=str, default=None,
+                        help='Kaldi ark file with x-vectors from one or more input recordings. '
+                             'Attention: all x-vectors from one recording must be in one ark file.'
+                             'This is for the second pass if running 2-pass diarization')
     parser.add_argument('--segments-file', required=True, type=str,
                         help='File with x-vector timing info (see diarization_lib.read_xvector_timing_dict)')
+    parser.add_argument('--segments-file2', required=False, type=str, default=None,
+                        help='File with x-vector timing info (see diarization_lib.read_xvector_timing_dict).'
+                             'This is for the second pass if running 2-pass diarization')
     parser.add_argument('--xvec-transform', required=False, type=str,
                         help='path to x-vector transformation h5 file')
     parser.add_argument('--plda-file', required=True, type=str,
                         help='File with PLDA model in Kaldi format used for AHC and VB-HMM x-vector clustering')
+    parser.add_argument('--plda-file2', required=False, type=str, default=None,
+                        help='File with PLDA model in Kaldi format used for AHC and VB-HMM x-vector clustering.'
+                             'This is for the second pass if running 2-pass diarization')
     parser.add_argument('--plda-format', required=False, type=str, default='kaldi', choices=['kaldi', 'pytorch'],
                         help='Format of stored PLDA, must be either kaldi or pytorch')
     parser.add_argument('--threshold', required=True, type=float, help='args.threshold (bias) used for AHC')
@@ -105,9 +115,19 @@ if __name__ == '__main__':
         if args.lda_dim is None:
             raise ValueError("lda-dim must be defined if xvec-transform is defined!")
 
-    if args.xvec_transform is not None and args.plda_format == 'kaldi':
+    if args.xvec_transform is None and args.plda_format == 'kaldi':
         logger.warning('xvec_transform is None but plda-format is set to `kaldi`! '
                        'Proceeding, but did you forget to set plda-format to `pytorch`?')
+
+    # check if 2pass is specified, if so, make sure all necessary 2pass variables are defined
+    second_pass = [args.xvec_ark_file2, args.segment_file2, args.plda_file2]
+    if all(v is None for v in second_pass):
+        run_twopass = False
+    else:
+        if not all(v is None for v in second_pass):
+            raise ValueError("not all necessary variables for 2-pass diarization have been defined!")
+        else:
+            run_twopass = True
     ###########
 
     # segments file with x-vector timing information
@@ -142,8 +162,8 @@ if __name__ == '__main__':
     # read a batch of x-vectors corresponding to one recording
     arkit = kaldi_io.read_vec_flt_ark(args.xvec_ark_file)
     recit = itertools.groupby(arkit, lambda e: e[0].rsplit('_', 1)[0]) # group xvectors in ark by recording name
-    for file_name, segs in recit:
-        print(file_name)
+    for ii, (file_name, segs) in enumerate(recit):
+        logger.info(ii, file_name)
         seg_names, xvecs = zip(*segs)
         x = np.array(xvecs)
 
