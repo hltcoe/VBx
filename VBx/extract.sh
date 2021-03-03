@@ -22,9 +22,9 @@ FEAT_EXTRACT_ENGINE=${8:-but}  # can be but or kaldi
 KALDI_FBANK_CONF=${9:-none}
 EMBED_DIM=${10:-256}  # xvector embedding dimension
 
-# BUT defaults
-SEG_JUMP=24
-SEG_LEN=144
+# BUT default values
+SEG_JUMP=${11:-24}
+SEG_LEN=${12:-144}
 
 # Error Checking for Input
 # if the input is an ONNX model, then MODEL is a string defining the architecture
