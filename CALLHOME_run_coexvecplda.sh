@@ -10,7 +10,7 @@ FILE_LIST=$6     # txt list of files to process
 LAB_DIR=$7       # lab files directory with VAD segments
 #RTTM_DIR=$8 # reference rttm files directory
 REF_RTTM=$8
-TWO_PASS=${0:-no}
+NUM_PASS=${9:-1}
 QUEUE=${10:-none}
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
@@ -27,22 +27,33 @@ FEAT_EXTRACT_ENGINE=kaldi
 KALDI_FBANK_CONF=/expscratch/kkarra/train_egs/fbank_8k.conf
 EMBED_DIM=128
 
-if [ "$TWO_PASS" = "no" ]; then
-  passes=(1)
-else
-  passes=(1 2)
-  # ensure that both xvector models are defined!
-  if [ -z "$XVEC_PLDA_MODEL1" ]; then
-    # NOTE: we could change this to send a warning and use the same model twice ...
-    echo "If running 2 pass, need to define a second Xvector model!"
-    exit 1
-  fi
-  if [ -z "$XVEC_PLDA_MODEL2" ]; then
-    # NOTE: we could change this to send a warning and use the same model twice ...
-    echo "If running 2 pass, need to define a second Xvector model!"
-    exit 1
-  fi
+if (( "$NUM_PASS" < 1 )); then
+  echo "NUM_PASS must be >= 1"
+  exit 1
 fi
+passes=($(seq 1 1 $NUM_PASS))
+
+# verify models/seg_jump/seg_len for each pass is defined
+for pass in ${passes[@]}
+do
+    # model, seg_jump, and seg_len are dynamic bash variables.
+    # See: https://stackoverflow.com/a/65021258/1057098
+    model="XVEC_PLDA_MODEL$pass"
+    seg_jump="PASS${pass}_SEG_JUMP"
+    seg_len="PASS${pass}_SEG_LEN"
+    if [ -z ${!model} ]; then
+        echo "$model is undefined!"
+        exit 1
+    fi
+    if [ -z ${!seg_jump} ]; then
+        echo "$seg_jump is undefined!"
+        exit 1
+    fi
+    if [ -z ${!seg_len} ]; then
+        echo "$seg_len is undefined!"
+        exit 1
+    fi
+done
 
 if [[ $INSTRUCTION == "xvectors" ]]; then
 
