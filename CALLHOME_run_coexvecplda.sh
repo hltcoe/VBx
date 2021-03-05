@@ -27,32 +27,31 @@ FEAT_EXTRACT_ENGINE=kaldi
 KALDI_FBANK_CONF=/expscratch/kkarra/train_egs/fbank_8k.conf
 EMBED_DIM=128
 
-if (( "$NUM_PASS" < 1 )); then
+if (("$NUM_PASS" < 1)); then
   echo "NUM_PASS must be >= 1"
   exit 1
 fi
 passes=($(seq 1 1 $NUM_PASS))
 
 # verify models/seg_jump/seg_len for each pass is defined
-for pass in ${passes[@]}
-do
-    # model, seg_jump, and seg_len are dynamic bash variables.
-    # See: https://stackoverflow.com/a/65021258/1057098
-    model="XVEC_PLDA_MODEL$pass"
-    seg_jump="PASS${pass}_SEG_JUMP"
-    seg_len="PASS${pass}_SEG_LEN"
-    if [ -z ${!model} ]; then
-        echo "$model is undefined!"
-        exit 1
-    fi
-    if [ -z ${!seg_jump} ]; then
-        echo "$seg_jump is undefined!"
-        exit 1
-    fi
-    if [ -z ${!seg_len} ]; then
-        echo "$seg_len is undefined!"
-        exit 1
-    fi
+for pass in ${passes[@]}; do
+  # model, seg_jump, and seg_len are dynamic bash variables.
+  # See: https://stackoverflow.com/a/65021258/1057098
+  model="XVEC_PLDA_MODEL$pass"
+  seg_jump="PASS${pass}_SEG_JUMP"
+  seg_len="PASS${pass}_SEG_LEN"
+  if [ -z ${!model} ]; then
+    echo "$model is undefined!"
+    exit 1
+  fi
+  if [ -z ${!seg_jump} ]; then
+    echo "$seg_jump is undefined!"
+    exit 1
+  fi
+  if [ -z ${!seg_len} ]; then
+    echo "$seg_len is undefined!"
+    exit 1
+  fi
 done
 
 if [[ $INSTRUCTION == "xvectors" ]]; then
@@ -109,7 +108,28 @@ if [[ $INSTRUCTION == "diarization" ]]; then
     mkdir -p $OUT_DIR
     while IFS= read -r line; do
       grep $line $FILE_LIST >$exp_dir/lists/$line".txt"
-      echo "python $DIR/VBx/vbhmm.py --init $METHOD --out-rttm-dir $OUT_DIR/rttms --xvec-ark-file $xvec_dir/xvectors/$line.ark --segments-file $xvec_dir/segments/$line --plda-file $XVEC_PLDA_MODEL --plda-format pytorch --threshold $thr --target-energy $tareng --init-smoothing $smooth --Fa $Fa --Fb $Fb --loopP $loopP" >>$TASKFILE
+      #echo "python $DIR/VBx/vbhmm.py --init $METHOD --out-rttm-dir $OUT_DIR/rttms --xvec-ark-file $xvec_dir/xvectors/$line.ark --segments-file $xvec_dir/segments/$line --plda-file $XVEC_PLDA_MODEL --plda-format pytorch --threshold $thr --target-energy $tareng --init-smoothing $smooth --Fa $Fa --Fb $Fb --loopP $loopP" >>$TASKFILE
+      cmd_str="python $DIR/VBx/vbhmm.py --init $METHOD --out-rttm-dir $OUT_DIR/rttms --xvec-ark-file"
+      xvec_inputarg=""
+      for pass in "${passes[@]}"; do
+        xvec_dir="$xvec_dir_base"_"$pass"
+        xvec_inputarg=$xvec_inputarg " ${xvec_dir}/xvectors/${line}.ark"
+      done
+      cmd_str="$cmd_str $xvec_inputarg  --segments-file"
+      segment_inputarg=""
+      for pass in "${passes[@]}"; do
+        xvec_dir="$xvec_dir_base"_"$pass"
+        segment_inputarg=segment_inputarg " ${xvec_dir}/xvectors/${line}"
+      done
+      cmd_str="$cmd_str $segment_inputarg  --plda-file"
+      plda_inputarg=""
+      for pass in "${passes[@]}"; do
+        plda_pass_model="XVEC_PLDA_MODEL$pass"
+        plda_inputarg=plda_inputarg " ${!plda_pass_model}"
+      done
+      cmd_str="$cmd_str $plda_inputarg --plda-format pytorch --threshold $thr --target-energy $tareng --init-smoothing $smooth --Fa $Fa --Fb $Fb --loopP $loopP"
+      echo $cmd_str >> $TASKFILE
+
       printf "$line " >>$UGE_TASKFILE
     done <$FILE_LIST
 

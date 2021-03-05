@@ -35,6 +35,7 @@
 import argparse
 import os
 import itertools
+import collections
 
 import h5py
 import kaldi_io
@@ -60,30 +61,53 @@ def write_output(fp, out_labels, starts, ends):
                  f'<NA> <NA> {label + 1} <NA> <NA>{os.linesep}')
 
 
+def read_plda(plda_file, plda_format):
+    if plda_format == 'kaldi':
+        kaldi_plda = read_plda(plda_file)
+        plda_mu, plda_tr, plda_psi = kaldi_plda
+        W = np.linalg.inv(plda_tr.T.dot(plda_tr))
+        B = np.linalg.inv((plda_tr.T / plda_psi).dot(plda_tr))
+        acvar, wccn = eigh(B, W)
+        plda_psi = acvar[::-1]
+        plda_tr = wccn.T[::-1]
+        # plda_mu.shape = (128,)
+        # plda_psi.shape = (128,)
+        # plda_tr.shape = (128, 128)
+    elif plda_format == 'pytorch':
+        os.environ["CUDA_VISIBLE_DEVICES"] = ""
+        Ulda, d_wc, d_ac = coe_xvec_gen_embed.get_plda(plda_file)
+        # Ulda.shape = (128, 128)
+        # d_wc.shape = (128,)
+        # d_ac.shape = (128,)
+        # rename these variables to what is expected in the code
+        # TODO: verify this!!!
+        #  1 - if I define plda_tr = Ulda, in the example wav file, I get a DER of 8.12
+        #  2 - if I define plda_tr = Ulda.T, in the example wav file, I get a DER of 2.14 !!
+        plda_tr = Ulda.T
+        plda_psi = d_ac
+        plda_mu = np.zeros_like(d_ac)
+
+    return plda_tr, plda_psi, plda_mu
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--init', required=True, type=str, choices=['AHC', 'AHC+VB', 'GMM', 'AHC+GMM'],
                         help='AHC for using only AHC or AHC+VB for VB-HMM after AHC initilization', )
     parser.add_argument('--out-rttm-dir', required=True, type=str, help='Directory to store output rttm files')
-    parser.add_argument('--xvec-ark-file', required=True, type=str,
+    parser.add_argument('--xvec-ark-file', required=True, type=str, nargs='+',
                         help='Kaldi ark file with x-vectors from one or more input recordings. '
+                             'Specify multiple files to indicate multi-pass diarization.'
                              'Attention: all x-vectors from one recording must be in one ark file')
-    parser.add_argument('--xvec-ark-file2', required=False, type=str, default=None,
-                        help='Kaldi ark file with x-vectors from one or more input recordings. '
-                             'Attention: all x-vectors from one recording must be in one ark file.'
-                             'This is for the second pass if running 2-pass diarization')
-    parser.add_argument('--segments-file', required=True, type=str,
-                        help='File with x-vector timing info (see diarization_lib.read_xvector_timing_dict)')
-    parser.add_argument('--segments-file2', required=False, type=str, default=None,
-                        help='File with x-vector timing info (see diarization_lib.read_xvector_timing_dict).'
-                             'This is for the second pass if running 2-pass diarization')
+    parser.add_argument('--segments-file', required=True, type=str, nargs='+',
+                        help='File with x-vector timing info (see diarization_lib.read_xvector_timing_dict)'
+                             'Specify multiple files to indicate multi-pass diarization')
     parser.add_argument('--xvec-transform', required=False, type=str,
                         help='path to x-vector transformation h5 file')
     parser.add_argument('--plda-file', required=True, type=str,
-                        help='File with PLDA model in Kaldi format used for AHC and VB-HMM x-vector clustering')
-    parser.add_argument('--plda-file2', required=False, type=str, default=None,
                         help='File with PLDA model in Kaldi format used for AHC and VB-HMM x-vector clustering.'
-                             'This is for the second pass if running 2-pass diarization')
+                             'Specify multiple files to indicate multi-pass diarization.'
+                             'WARNING!! All PLDA models provided are assumed to be of the same format!')
     parser.add_argument('--plda-format', required=False, type=str, default='kaldi', choices=['kaldi', 'pytorch'],
                         help='Format of stored PLDA, must be either kaldi or pytorch')
     parser.add_argument('--threshold', required=True, type=float, help='args.threshold (bias) used for AHC')
@@ -119,126 +143,113 @@ if __name__ == '__main__':
         logger.warning('xvec_transform is None but plda-format is set to `kaldi`! '
                        'Proceeding, but did you forget to set plda-format to `pytorch`?')
 
-    # check if 2pass is specified, if so, make sure all necessary 2pass variables are defined
-    second_pass = [args.xvec_ark_file2, args.segments_file2, args.plda_file2]
-    if all(v is None for v in second_pass):
-        run_twopass = False
-    else:
-        if not all(v is None for v in second_pass):
-            raise ValueError("not all necessary variables for 2-pass diarization have been defined!")
-        else:
-            run_twopass = True
-    ###########
+    # check if multi-pass is defined
+    num_xvecs_defined = len(args.xvec_ark_file)
+    num_segs_defined = len(args.segments_file)
+    num_pldas_defined = len(args.plda_file)
+    if not (num_xvecs_defined == num_segs_defined == num_pldas_defined):
+        raise ValueError("Number of xvector files, segments, and pldas must be equal!")
+    num_diarization_passes = num_xvecs_defined
 
-    # segments file with x-vector timing information
-    segs_dict = read_xvector_timing_dict(args.segments_file)
+    recoid2labels_nthpass_1stmostlikely = {}
+    recoid2labels_nthpass_2ndmostlikely = {}
+    recoid2numpasses = collections.defaultdict(type=int)
+    for diarization_pass_ii in range(num_diarization_passes):
+        # segments file with x-vector timing information
+        segs_dict = read_xvector_timing_dict(args.segments_file[diarization_pass_ii])
+        # read the plda
+        plda_tr, plda_psi, plda_mu = read_plda(args.plda_file[diarization_pass_ii], args.plda_format)
+        # Open ark file with x-vectors and in each iteration of the following for-loop
+        # read a batch of x-vectors corresponding to one recording
+        arkit = kaldi_io.read_vec_flt_ark(args.xvec_ark_file[diarization_pass_ii])
+        recit = itertools.groupby(arkit, lambda e: e[0].rsplit('_', 1)[0]) # group xvectors in ark by recording name
+        for ii, (file_name, segs) in enumerate(recit):
+            #logger.info(ii, file_name)
+            print(ii, file_name, diarization_pass_ii)
+            seg_names, xvecs = zip(*segs)
+            x = np.array(xvecs)
 
-    if args.plda_format == 'kaldi':
-        kaldi_plda = read_plda(args.plda_file)
-        plda_mu, plda_tr, plda_psi = kaldi_plda
-        W = np.linalg.inv(plda_tr.T.dot(plda_tr))
-        B = np.linalg.inv((plda_tr.T / plda_psi).dot(plda_tr))
-        acvar, wccn = eigh(B, W)
-        plda_psi = acvar[::-1]
-        plda_tr = wccn.T[::-1]
-        # plda_mu.shape = (128,)
-        # plda_psi.shape = (128,)
-        # plda_tr.shape = (128, 128)
-    elif args.plda_format == 'pytorch':
-        os.environ["CUDA_VISIBLE_DEVICES"] = ""
-        Ulda, d_wc, d_ac = coe_xvec_gen_embed.get_plda(args.plda_file)
-        # Ulda.shape = (128, 128)
-        # d_wc.shape = (128,)
-        # d_ac.shape = (128,)
-        # rename these variables to what is expected in the code
-        # TODO: verify this!!!
-        #  1 - if I define plda_tr = Ulda, in the example wav file, I get a DER of 8.12
-        #  2 - if I define plda_tr = Ulda.T, in the example wav file, I get a DER of 2.14 !!
-        plda_tr = Ulda.T
-        plda_psi = d_ac
-        plda_mu = np.zeros_like(d_ac)
+            if args.xvec_transform is not None:
+                with h5py.File(args.xvec_transform, 'r') as f:
+                    mean1 = np.array(f['mean1'])
+                    mean2 = np.array(f['mean2'])
+                    lda = np.array(f['lda'])
+                    x = l2_norm(lda.T.dot((l2_norm(x - mean1)).transpose()).transpose() - mean2)
 
-    # Open ark file with x-vectors and in each iteration of the following for-loop
-    # read a batch of x-vectors corresponding to one recording
-    arkit = kaldi_io.read_vec_flt_ark(args.xvec_ark_file)
-    recit = itertools.groupby(arkit, lambda e: e[0].rsplit('_', 1)[0]) # group xvectors in ark by recording name
-    for ii, (file_name, segs) in enumerate(recit):
-        #logger.info(ii, file_name)
-        print(ii, file_name)
-        seg_names, xvecs = zip(*segs)
-        x = np.array(xvecs)
+            labels1st = None
+            if args.init == 'AHC' or args.init.endswith('VB') or args.init.endswith('GMM'):
+                if args.init.startswith('AHC'):
+                    # Kaldi-like AHC of x-vectors (scr_mx is matrix of pairwise
+                    # similarities between all x-vectors)
+                    scr_mx = cos_similarity(x)
+                    # Figure out utterance specific args.threshold for AHC.
+                    thr, junk = twoGMMcalib_lin(scr_mx.ravel())
+                    # output "labels" is an integer vector of speaker (cluster) ids
+                    labels1st = AHC(scr_mx, thr + args.threshold)
 
-        if args.xvec_transform is not None:
-            with h5py.File(args.xvec_transform, 'r') as f:
-                mean1 = np.array(f['mean1'])
-                mean2 = np.array(f['mean2'])
-                lda = np.array(f['lda'])
-                x = l2_norm(lda.T.dot((l2_norm(x - mean1)).transpose()).transpose() - mean2)
+                if args.init.endswith('VB'):
+                    # Smooth the hard labels obtained from AHC to soft assignments
+                    # of x-vectors to speakers
+                    qinit = np.zeros((len(labels1st), np.max(labels1st) + 1))
+                    qinit[range(len(labels1st)), labels1st] = 1.0
+                    qinit = softmax(qinit * args.init_smoothing, axis=1)
+                    fea = (x - plda_mu).dot(plda_tr.T)
+                    # Use VB-HMM for x-vector clustering. Instead of i-vector extractor model, we use PLDA
+                    # => GMM with only 1 component, V derived accross-class covariance,
+                    # and iE is inverse within-class covariance (i.e. identity)
+                    if args.lda_dim is not None:
+                        fea = fea[:,:args.lda_dim]
+                        # Default - BUT algorithm
+                        sm = np.zeros(args.lda_dim)
+                        siE = np.ones(args.lda_dim)
+                        sV = np.sqrt(plda_psi[:args.lda_dim])
+                    else:
+                        sm = plda_mu
+                        siE = np.ones_like(sm)
+                        sV = np.sqrt(plda_psi)
 
-        labels1st = None
-        if args.init == 'AHC' or args.init.endswith('VB') or args.init.endswith('GMM'):
-            if args.init.startswith('AHC'):
-                # Kaldi-like AHC of x-vectors (scr_mx is matrix of pairwise
-                # similarities between all x-vectors)
-                scr_mx = cos_similarity(x)
-                # Figure out utterance specific args.threshold for AHC.
-                thr, junk = twoGMMcalib_lin(scr_mx.ravel())
-                # output "labels" is an integer vector of speaker (cluster) ids
-                labels1st = AHC(scr_mx, thr + args.threshold)
+                    q, sp, L = VB_diarization(
+                        fea, sm, np.diag(siE), np.diag(sV),
+                        pi=None, gamma=qinit, maxSpeakers=qinit.shape[1],
+                        maxIters=40, epsilon=1e-6,
+                        loopProb=args.loopP, Fa=args.Fa, Fb=args.Fb)
 
-            if args.init.endswith('VB'):
-                # Smooth the hard labels obtained from AHC to soft assignments
-                # of x-vectors to speakers
-                qinit = np.zeros((len(labels1st), np.max(labels1st) + 1))
-                qinit[range(len(labels1st)), labels1st] = 1.0
-                qinit = softmax(qinit * args.init_smoothing, axis=1)
-                fea = (x - plda_mu).dot(plda_tr.T)
-                # Use VB-HMM for x-vector clustering. Instead of i-vector extractor model, we use PLDA
-                # => GMM with only 1 component, V derived accross-class covariance,
-                # and iE is inverse within-class covariance (i.e. identity)
-                if args.lda_dim is not None:
-                    fea = fea[:,:args.lda_dim]
-                    # Default - BUT algorithm
-                    sm = np.zeros(args.lda_dim)
-                    siE = np.ones(args.lda_dim)
-                    sV = np.sqrt(plda_psi[:args.lda_dim])
-                else:
-                    sm = plda_mu
-                    siE = np.ones_like(sm)
-                    sV = np.sqrt(plda_psi)
+                    labels1st = np.argsort(-q, axis=1)[:, 0]
+                    if q.shape[1] > 1:
+                        labels2nd = np.argsort(-q, axis=1)[:, 1]
+                        recoid2labels_nthpass_2ndmostlikely[file_name] = labels2nd
+                elif args.init.endswith('GMM'):
+                    if labels1st is None:
+                        M = 7
+                    else:
+                        M = len(np.unique(labels1st))
+                    fea = (x - plda_mu).dot(plda_tr.T)[:, :args.lda_dim]
+                    #labels1st = em_gmm_clean(x.T, W, B, M=M, r=0.9, num_iter=30, init_labels=labels1st)
+                    labels1st = em_gmm_clean.em_gmm_clean(fea.T, np.ones(args.lda_dim), plda_psi[:args.lda_dim],
+                                                          M=M, r=0.9, num_iter=30, init_labels=labels1st)
+            else:
+                raise ValueError('Wrong option for args.initialization.')
 
-                q, sp, L = VB_diarization(
-                    fea, sm, np.diag(siE), np.diag(sV),
-                    pi=None, gamma=qinit, maxSpeakers=qinit.shape[1],
-                    maxIters=40, epsilon=1e-6, 
-                    loopProb=args.loopP, Fa=args.Fa, Fb=args.Fb)
+            recoid2numpasses[file_name] += 1
+            recoid2labels_nthpass_1stmostlikely[file_name] = labels1st
 
-                labels1st = np.argsort(-q, axis=1)[:, 0]
-                if q.shape[1] > 1:
-                    labels2nd = np.argsort(-q, axis=1)[:, 1]
-            elif args.init.endswith('GMM'):
-                if labels1st is None:
-                    M = 7
-                else:
-                    M = len(np.unique(labels1st))
-                fea = (x - plda_mu).dot(plda_tr.T)[:, :args.lda_dim]
-                #labels1st = em_gmm_clean(x.T, W, B, M=M, r=0.9, num_iter=30, init_labels=labels1st)
-                labels1st = em_gmm_clean.em_gmm_clean(fea.T, np.ones(args.lda_dim), plda_psi[:args.lda_dim],
-                                                      M=M, r=0.9, num_iter=30, init_labels=labels1st)
-        else:
-            raise ValueError('Wrong option for args.initialization.')
+            if recoid2numpasses[file_name] == num_diarization_passes:
+                assert(np.all(segs_dict[file_name][0] == np.array(seg_names)))
+                start, end = segs_dict[file_name][1].T
 
-        assert(np.all(segs_dict[file_name][0] == np.array(seg_names)))
-        start, end = segs_dict[file_name][1].T
+                labels_1stmostlikely_nthpass = recoid2labels_nthpass_1stmostlikely[filename]
 
-        starts, ends, out_labels = merge_adjacent_labels(start, end, labels1st)
-        mkdir_p(args.out_rttm_dir)
-        with open(os.path.join(args.out_rttm_dir, f'{file_name}.rttm'), 'w') as fp:
-            write_output(fp, out_labels, starts, ends)
+                starts, ends, out_labels = merge_adjacent_labels(start, end, labels_1stmostlikely_nthpass)
+                mkdir_p(args.out_rttm_dir)
+                with open(os.path.join(args.out_rttm_dir, f'{file_name}.rttm'), 'w') as fp:
+                    write_output(fp, out_labels, starts, ends)
 
-        if args.output_2nd and args.init.endswith('VB') and q.shape[1] > 1:
-            starts, ends, out_labels2 = merge_adjacent_labels(start, end, labels2nd)
-            output_rttm_dir = f'{args.out_rttm_dir}2nd'
-            mkdir_p(output_rttm_dir)
-            with open(os.path.join(output_rttm_dir, f'{file_name}.rttm'), 'w') as fp:
-                write_output(fp, out_labels2, starts, ends)
+                if args.output_2nd and args.init.endswith('VB') and q.shape[1] > 1:
+                    labels_2ndmostlikely_nthpass = recoid2labels_nthpass_2ndmostlikely[filename]
+                    starts, ends, out_labels2 = merge_adjacent_labels(start, end, labels_2ndmostlikely_nthpass)
+                    output_rttm_dir = f'{args.out_rttm_dir}2nd'
+                    mkdir_p(output_rttm_dir)
+                    with open(os.path.join(output_rttm_dir, f'{file_name}.rttm'), 'w') as fp:
+                        write_output(fp, out_labels2, starts, ends)
+
+                # TODO: delete the keys from recoid2* dicts, b/c we no longer need to keep them
