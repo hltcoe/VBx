@@ -104,7 +104,7 @@ if __name__ == '__main__':
                              'Specify multiple files to indicate multi-pass diarization')
     parser.add_argument('--xvec-transform', required=False, type=str,
                         help='path to x-vector transformation h5 file')
-    parser.add_argument('--plda-file', required=True, type=str,
+    parser.add_argument('--plda-file', required=True, type=str, nargs='+',
                         help='File with PLDA model in Kaldi format used for AHC and VB-HMM x-vector clustering.'
                              'Specify multiple files to indicate multi-pass diarization.'
                              'WARNING!! All PLDA models provided are assumed to be of the same format!')
@@ -153,7 +153,7 @@ if __name__ == '__main__':
 
     recoid2labels_nthpass_1stmostlikely = {}
     recoid2labels_nthpass_2ndmostlikely = {}
-    recoid2numpasses = collections.defaultdict(type=int)
+    recoid2numpasses = collections.defaultdict(int)
     for diarization_pass_ii in range(num_diarization_passes):
         # segments file with x-vector timing information
         segs_dict = read_xvector_timing_dict(args.segments_file[diarization_pass_ii])
@@ -176,7 +176,7 @@ if __name__ == '__main__':
                     lda = np.array(f['lda'])
                     x = l2_norm(lda.T.dot((l2_norm(x - mean1)).transpose()).transpose() - mean2)
 
-            labels1st = None
+            labels1st = recoid2labels_nthpass_1stmostlikely.get(file_name, None)
             if args.init == 'AHC' or args.init.endswith('VB') or args.init.endswith('GMM'):
                 if args.init.startswith('AHC'):
                     # Kaldi-like AHC of x-vectors (scr_mx is matrix of pairwise
@@ -237,7 +237,7 @@ if __name__ == '__main__':
                 assert(np.all(segs_dict[file_name][0] == np.array(seg_names)))
                 start, end = segs_dict[file_name][1].T
 
-                labels_1stmostlikely_nthpass = recoid2labels_nthpass_1stmostlikely[filename]
+                labels_1stmostlikely_nthpass = recoid2labels_nthpass_1stmostlikely[file_name]
 
                 starts, ends, out_labels = merge_adjacent_labels(start, end, labels_1stmostlikely_nthpass)
                 mkdir_p(args.out_rttm_dir)

@@ -16,12 +16,21 @@ QUEUE=${10:-none}
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 # define models and configurations for each pass
-XVEC_PLDA_MODEL1=/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test/models/checkpoint-epoch400.pth
-XVEC_PLDA_MODEL2=/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test/models/checkpoint-epoch400.pth
-PASS1_SEG_JUMP=24
-PASS1_SEG_LEN=144
-PASS2_SEG_JUMP=24
-PASS2_SEG_LEN=144
+#XVEC_PLDA_MODEL1=/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test/models/checkpoint-epoch400.pth
+#XVEC_PLDA_MODEL2=/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test/models/checkpoint-epoch400.pth
+#PASS1_SEG_JUMP=24
+#PASS1_SEG_LEN=144
+#PASS2_SEG_JUMP=24
+#PASS2_SEG_LEN=144
+#####
+# configuration comes from /expscratch/amccree/pytorch/Diarize/v1/Test_clean/run_diar_2pass.py
+XVEC_PLDA_MODEL1="/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test_sgd/Updated/Test_freeze_2s_dc_vb/Test_1gpu/models/checkpoint-latest.pth"
+XVEC_PLDA_MODEL2=$XVEC_PLDA_MODEL1
+PASS1_SEG_JUMP=200  # corresponds to ovlp=0
+PASS1_SEG_LEN=200   # corresponds to 2 sec
+PASS2_SEG_JUMP=12   # corresponds to ovlp=0.5
+PASS2_SEG_LEN=25    # corresponds to .25 sec
+###
 
 FEAT_EXTRACT_ENGINE=kaldi
 KALDI_FBANK_CONF=/expscratch/kkarra/train_egs/fbank_8k.conf
@@ -113,19 +122,19 @@ if [[ $INSTRUCTION == "diarization" ]]; then
       xvec_inputarg=""
       for pass in "${passes[@]}"; do
         xvec_dir="$xvec_dir_base"_"$pass"
-        xvec_inputarg=$xvec_inputarg " ${xvec_dir}/xvectors/${line}.ark"
+        xvec_inputarg="$xvec_inputarg ${xvec_dir}/xvectors/${line}.ark"
       done
       cmd_str="$cmd_str $xvec_inputarg  --segments-file"
       segment_inputarg=""
       for pass in "${passes[@]}"; do
         xvec_dir="$xvec_dir_base"_"$pass"
-        segment_inputarg=segment_inputarg " ${xvec_dir}/xvectors/${line}"
+        segment_inputarg="$segment_inputarg ${xvec_dir}/segments/${line}"
       done
       cmd_str="$cmd_str $segment_inputarg  --plda-file"
       plda_inputarg=""
       for pass in "${passes[@]}"; do
         plda_pass_model="XVEC_PLDA_MODEL$pass"
-        plda_inputarg=plda_inputarg " ${!plda_pass_model}"
+        plda_inputarg="$plda_inputarg ${!plda_pass_model}"
       done
       cmd_str="$cmd_str $plda_inputarg --plda-format pytorch --threshold $thr --target-energy $tareng --init-smoothing $smooth --Fa $Fa --Fb $Fb --loopP $loopP"
       echo $cmd_str >> $TASKFILE
@@ -142,23 +151,25 @@ if [[ $INSTRUCTION == "diarization" ]]; then
 
       xvec_inputarg=""
       segment_inputarg=""
-      plda_pass_model=""
+      plda_inputarg=""
       for pass in "${passes[@]}"; do
         xvec_dir="$xvec_dir_base"_"$pass"
-        xvec_inputarg=$xvec_inputarg " ${xvec_dir}/xvectors/\${file_uge}.ark"
-        segment_inputarg=segment_inputarg " ${xvec_dir}/xvectors/\${file_uge}"
-        plda_pass_model="\$XVEC_PLDA_MODEL$pass"
+        xvec_inputarg="$xvec_inputarg ${xvec_dir}/xvectors/\${file_uge}.ark"
+        segment_inputarg="$segment_inputarg ${xvec_dir}/segments/\${file_uge}"
+        plda_model="XVEC_PLDA_MODEL$pass"
+        plda_inputarg="$plda_inputarg ${!plda_model}"
       done
 
       echo "file_uge=\${flist[\$((\${SGE_TASK_ID}-1))]}" >>$UGE_TASKFILE
       #echo "python $DIR/VBx/vbhmm.py --init $METHOD --out-rttm-dir $OUT_DIR/rttms --xvec-ark-file $xvec_dir/xvectors/\${file_uge}.ark --segments-file $xvec_dir/segments/\${file_uge} --plda-file $XVEC_PLDA_MODEL --plda-format pytorch --threshold $thr --target-energy $tareng --init-smoothing $smooth --Fa $Fa --Fb $Fb --loopP $loopP" >>$UGE_TASKFILE
-      cmd_str="python $DIR/VBx/vbhmm.py --init $METHOD --out-rttm-dir $OUT_DIR/rttms --xvec-ark-file $xvec_dir/xvectors/\${file_uge}.ark --segments-file $xvec_dir/segments/\${file_uge} --plda-file $XVEC_PLDA_MODEL --plda-format pytorch --threshold $thr --target-energy $tareng --init-smoothing $smooth --Fa $Fa --Fb $Fb --loopP $loopP"
+      cmd_str="python $DIR/VBx/vbhmm.py --init $METHOD --out-rttm-dir $OUT_DIR/rttms --xvec-ark-file $xvec_inputarg --segments-file $segment_inputarg --plda-file $plda_inputarg --plda-format pytorch --threshold $thr --target-energy $tareng --init-smoothing $smooth --Fa $Fa --Fb $Fb --loopP $loopP"
 
       echo $cmd_str >> $UGE_TASKFILE
       nl=$(wc -l <$FILE_LIST)
       qsub -cwd -l num_proc=1,mem_free=4G,h_rt=400:00:00 -N vbxhmm -q $QUEUE -t 1:$nl -sync y -o $OUT_DIR/vbhmm.log -e $OUT_DIR/vbhmm.err $UGE_TASKFILE
     fi
   fi
+
   ## Score
   cat $OUT_DIR/rttms/*.rttm >$OUT_DIR/sys.rttm
   #cat $RTTM_DIR/*.rttm > $OUT_DIR/ref.rttm
