@@ -120,7 +120,7 @@ if __name__ == '__main__':
                        'Proceeding, but did you forget to set plda-format to `pytorch`?')
 
     # check if 2pass is specified, if so, make sure all necessary 2pass variables are defined
-    second_pass = [args.xvec_ark_file2, args.segment_file2, args.plda_file2]
+    second_pass = [args.xvec_ark_file2, args.segments_file2, args.plda_file2]
     if all(v is None for v in second_pass):
         run_twopass = False
     else:
@@ -163,7 +163,8 @@ if __name__ == '__main__':
     arkit = kaldi_io.read_vec_flt_ark(args.xvec_ark_file)
     recit = itertools.groupby(arkit, lambda e: e[0].rsplit('_', 1)[0]) # group xvectors in ark by recording name
     for ii, (file_name, segs) in enumerate(recit):
-        logger.info(ii, file_name)
+        #logger.info(ii, file_name)
+        print(ii, file_name)
         seg_names, xvecs = zip(*segs)
         x = np.array(xvecs)
 

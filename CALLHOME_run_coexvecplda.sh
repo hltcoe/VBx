@@ -32,12 +32,12 @@ if [ "$TWO_PASS" = "no" ]; then
 else
   passes=(1 2)
   # ensure that both xvector models are defined!
-  if [ ! -z "$XVEC_PLDA_MODEL2" ]; then
+  if [ -z "$XVEC_PLDA_MODEL1" ]; then
     # NOTE: we could change this to send a warning and use the same model twice ...
     echo "If running 2 pass, need to define a second Xvector model!"
     exit 1
   fi
-  if [ ! -z "$XVEC_PLDA_MODEL2" ]; then
+  if [ -z "$XVEC_PLDA_MODEL2" ]; then
     # NOTE: we could change this to send a warning and use the same model twice ...
     echo "If running 2 pass, need to define a second Xvector model!"
     exit 1
