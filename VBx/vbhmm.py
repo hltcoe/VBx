@@ -223,10 +223,18 @@ if __name__ == '__main__':
                         M = 7
                     else:
                         M = len(np.unique(labels1st))
-                    fea = (x - plda_mu).dot(plda_tr.T)[:, :args.lda_dim]
+                    
+                    fea = (x - plda_mu).dot(plda_tr.T)
+                    # No dimensionality reduction w/ LDA --> 
+                    #fea = (x - plda_mu).dot(plda_tr.T)[:, :args.lda_dim]
+                    cov_wc = np.ones_like(plda_psi)
+                    cov_ac = plda_psi  
+                    # No dimensionality reduction w/ LDA -->  
+                    #cov_ac = plda_psi[:args.lda_dim]
                     #labels1st = em_gmm_clean(x.T, W, B, M=M, r=0.9, num_iter=30, init_labels=labels1st)
-                    labels1st = em_gmm_clean.em_gmm_clean(fea.T, np.ones(args.lda_dim), plda_psi[:args.lda_dim],
+                    labels1st = em_gmm_clean.em_gmm_clean(fea.T, cov_wc, cov_ac,
                                                           M=M, r=0.9, num_iter=30, init_labels=labels1st)
+                    print('pass#=', diarization_pass_ii, 'labels1st.unique()', str(np.unique(labels1st)))
             else:
                 raise ValueError('Wrong option for args.initialization.')
 

@@ -20,12 +20,12 @@ from sklearn.cluster import KMeans
 # Function for leave-one-out PLDA GMM clustering
 def em_gmm_clean(x_in, cov_wc, cov_ac, M=7, r=0.9, num_iter=30, init_labels=None, verbose=1):
 
+    print('x_in.shape=', x_in.shape, 'init_labels.shape', 'None' if init_labels is None else str(init_labels.shape))
     x = x_in.copy() # Don't change input
     N = x.shape[1]
     print("EM GMM, M %d N %d" % (M,N))
 
     # Joint diagonalization if not already diagonalized
-    print(cov_wc.shape)
     if min(cov_wc.shape) != 1 and len(cov_wc.shape) != 1:
         print("Applying joint diagonalization...")
         # LDA joint diagonalization to output dimension
@@ -46,6 +46,7 @@ def em_gmm_clean(x_in, cov_wc, cov_ac, M=7, r=0.9, num_iter=30, init_labels=None
 
     # Initialize models with posteriors from clustering
     print("Initializing GMM...")
+    print('init_labels.unique()', str(np.unique(init_labels)))
     #p0 = 0.0001
     p0 = 0.05/M
     #p1 = 1.0 - (M*p0)
