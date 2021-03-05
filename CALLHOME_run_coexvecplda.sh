@@ -139,8 +139,22 @@ if [[ $INSTRUCTION == "diarization" ]]; then
     else
       # run it on the grid
       # TODO: add GPU support
+
+      xvec_inputarg=""
+      segment_inputarg=""
+      plda_pass_model=""
+      for pass in "${passes[@]}"; do
+        xvec_dir="$xvec_dir_base"_"$pass"
+        xvec_inputarg=$xvec_inputarg " ${xvec_dir}/xvectors/\${file_uge}.ark"
+        segment_inputarg=segment_inputarg " ${xvec_dir}/xvectors/\${file_uge}"
+        plda_pass_model="\$XVEC_PLDA_MODEL$pass"
+      done
+
       echo "file_uge=\${flist[\$((\${SGE_TASK_ID}-1))]}" >>$UGE_TASKFILE
-      echo "python $DIR/VBx/vbhmm.py --init $METHOD --out-rttm-dir $OUT_DIR/rttms --xvec-ark-file $xvec_dir/xvectors/\${file_uge}.ark --segments-file $xvec_dir/segments/\${file_uge} --plda-file $XVEC_PLDA_MODEL --plda-format pytorch --threshold $thr --target-energy $tareng --init-smoothing $smooth --Fa $Fa --Fb $Fb --loopP $loopP" >>$UGE_TASKFILE
+      #echo "python $DIR/VBx/vbhmm.py --init $METHOD --out-rttm-dir $OUT_DIR/rttms --xvec-ark-file $xvec_dir/xvectors/\${file_uge}.ark --segments-file $xvec_dir/segments/\${file_uge} --plda-file $XVEC_PLDA_MODEL --plda-format pytorch --threshold $thr --target-energy $tareng --init-smoothing $smooth --Fa $Fa --Fb $Fb --loopP $loopP" >>$UGE_TASKFILE
+      cmd_str="python $DIR/VBx/vbhmm.py --init $METHOD --out-rttm-dir $OUT_DIR/rttms --xvec-ark-file $xvec_dir/xvectors/\${file_uge}.ark --segments-file $xvec_dir/segments/\${file_uge} --plda-file $XVEC_PLDA_MODEL --plda-format pytorch --threshold $thr --target-energy $tareng --init-smoothing $smooth --Fa $Fa --Fb $Fb --loopP $loopP"
+
+      echo $cmd_str >> $UGE_TASKFILE
       nl=$(wc -l <$FILE_LIST)
       qsub -cwd -l num_proc=1,mem_free=4G,h_rt=400:00:00 -N vbxhmm -q $QUEUE -t 1:$nl -sync y -o $OUT_DIR/vbhmm.log -e $OUT_DIR/vbhmm.err $UGE_TASKFILE
     fi
