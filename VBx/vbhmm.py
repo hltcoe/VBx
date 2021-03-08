@@ -43,13 +43,15 @@ import numpy as np
 from scipy.special import softmax
 from scipy.linalg import eigh
 
-from diarization_lib import read_xvector_timing_dict, l2_norm, cos_similarity, twoGMMcalib_lin, AHC, \
+from .diarization_lib import read_xvector_timing_dict, l2_norm, cos_similarity, twoGMMcalib_lin, AHC, \
     merge_adjacent_labels, mkdir_p
-from kaldi_utils import read_plda
-from VB_diarization import VB_diarization
+from .kaldi_utils import read_plda
+from .VB_diarization import VB_diarization
 
 import xvectors.gen_embed as coe_xvec_gen_embed
-import em_gmm_clean
+from . import em_gmm_clean
+
+import pandas as pd
 
 import logging
 logger = logging.getLogger(__name__)
@@ -89,6 +91,81 @@ def read_plda(plda_file, plda_format):
 
     return plda_tr, plda_psi, plda_mu
 
+def align_labels(labels_cfg1, segments_cfg1, segments_cfg2):
+    """
+    Converts labels from one segmentation configuration to another
+    :param labels_cfg1: labels of the "from" segmentation configuration
+    :param segments_cfg1: segments of the "from" segmentation configuration
+    :param segments_cfg2: segments of the "to" segmentation configuration
+    :return: the best label
+
+    WARNING: I have not tested this in the scenario where segments-cfg2 is of
+             larger resolution than segments-cfg1
+    """
+    def get_best_label(segment_df, t_start, t_end):
+        gt_subset = segment_df[(segment_df['t_start'] <= t_start) & (t_start <= segment_df['t_end'])]
+        lt_subset = segment_df[(segment_df['t_start'] <= t_end) & (t_end <= segment_df['t_end'])]
+        valid_segments = pd.merge(gt_subset, lt_subset, how='inner')  # intersection
+        if len(valid_segments) == 1:
+            # if its only one label, return directly
+            return valid_segments['label'].values[0]
+        elif len(valid_segments) == 0:
+            valid_segments = pd.merge(gt_subset, lt_subset, how='outer')  # union
+            # if it cross boundary,
+            # if it is the same label on both sides, assign without ambiguity,
+            #  otherwise, we assign the class for which the most overlap exists
+            best_contain_amt = None
+            best_label = None
+            for _, r in valid_segments.iterrows():
+                t1 = max(t_start, r['t_start'])
+                t2 = min(t_end, r['t_end'])
+                contain_amt = t2 - t1
+                if best_contain_amt is None or contain_amt > best_contain_amt:
+                    best_contain_amt = contain_amt
+                    best_label = r['label']  # this is a series, so we don't need to do .values
+            return best_label
+        else:
+            logger.warning('No label found for: [%0.02f,%0.02f]' %
+                           (t_start, t_end))
+            return 0  # TODO: ?? is this desired behavior?
+
+    # read segments-cfg1 file
+    segments1 = pd.read_csv(segments_cfg1, sep=' ', header=None,
+                            names=['id', 'spkr', 't_start', 't_end'])
+    assert len(segments1) == len(labels_cfg1), \
+        "Segments1 and labels1 must be the same length! len(segments1)=%d len(labels_cfg1)=%d" % \
+        (len(segments1), len(labels_cfg1))
+    segments1['label'] = labels_cfg1
+
+    segments2 = pd.read_csv(segments_cfg2, sep=' ', header=None,
+                            names=['id', 'spkr', 't_start', 't_end'])
+    labels_seg2 = np.zeros(len(segments2))
+    for ii, row in segments2.iterrows():
+        t_start = row['t_start']
+        t_end = row['t_end']
+
+        l = get_best_label(segments1, t_start, t_end)
+        labels_seg2[ii] = l
+
+    return labels_seg2.astype(int)
+
+
+def remap_label_numbers(labels):
+    """
+    Resets numbering of labels to start from 0, while preserving unique labels
+    :param labels: labels to be remapped starting with index=0
+    :return: remapped labels
+    """
+    unq_labels = np.unique(labels)
+    M = len(unq_labels)
+    mapping = {}
+    for ii, u in enumerate(unq_labels):
+        mapping[u] = ii
+
+    for ii, l in enumerate(labels):
+        labels[ii] = mapping[l]
+
+    return labels
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -223,6 +300,12 @@ if __name__ == '__main__':
                         M = 7
                     else:
                         M = len(np.unique(labels1st))
+                        # re-align labels by interpolating the labels to the required shape
+                        # for the current segments file, which is
+                        labels1st = align_labels(labels1st,
+                                                 args.segments_file[diarization_pass_ii-1],
+                                                 args.segments_file[diarization_pass_ii])
+                        labels1st = remap_label_numbers(labels1st)
                     
                     fea = (x - plda_mu).dot(plda_tr.T)
                     # No dimensionality reduction w/ LDA --> 
