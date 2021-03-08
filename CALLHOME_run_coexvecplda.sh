@@ -16,21 +16,12 @@ QUEUE=${10:-none}
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 # define models and configurations for each pass
-#XVEC_PLDA_MODEL1=/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test/models/checkpoint-epoch400.pth
-#XVEC_PLDA_MODEL2=/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test/models/checkpoint-epoch400.pth
-#PASS1_SEG_JUMP=24
-#PASS1_SEG_LEN=144
-#PASS2_SEG_JUMP=24
-#PASS2_SEG_LEN=144
-#####
-# configuration comes from /expscratch/amccree/pytorch/Diarize/v1/Test_clean/run_diar_2pass.py
 XVEC_PLDA_MODEL1="/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test_sgd/Updated/Test_freeze_2s_dc_vb/Test_1gpu/models/checkpoint-latest.pth"
 XVEC_PLDA_MODEL2=$XVEC_PLDA_MODEL1
 PASS1_SEG_JUMP=200  # corresponds to ovlp=0
 PASS1_SEG_LEN=200   # corresponds to 2 sec
-PASS2_SEG_JUMP=12   # corresponds to ovlp=0.5
-PASS2_SEG_LEN=25    # corresponds to .25 sec
-###
+PASS2_SEG_JUMP=24   # BUT Default
+PASS2_SEG_LEN=144   # BUT Default
 
 FEAT_EXTRACT_ENGINE=kaldi
 KALDI_FBANK_CONF=/expscratch/kkarra/train_egs/fbank_8k.conf

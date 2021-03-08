@@ -43,13 +43,13 @@ import numpy as np
 from scipy.special import softmax
 from scipy.linalg import eigh
 
-from .diarization_lib import read_xvector_timing_dict, l2_norm, cos_similarity, twoGMMcalib_lin, AHC, \
+from VBx.diarization_lib import read_xvector_timing_dict, l2_norm, cos_similarity, twoGMMcalib_lin, AHC, \
     merge_adjacent_labels, mkdir_p
-from .kaldi_utils import read_plda
-from .VB_diarization import VB_diarization
+from VBx.kaldi_utils import read_plda as read_kaldi_plda
+from VBx.VB_diarization import VB_diarization
 
 import xvectors.gen_embed as coe_xvec_gen_embed
-from . import em_gmm_clean
+from VBx import em_gmm_clean
 
 import pandas as pd
 
@@ -65,7 +65,7 @@ def write_output(fp, out_labels, starts, ends):
 
 def read_plda(plda_file, plda_format):
     if plda_format == 'kaldi':
-        kaldi_plda = read_plda(plda_file)
+        kaldi_plda = read_kaldi_plda(plda_file)
         plda_mu, plda_tr, plda_psi = kaldi_plda
         W = np.linalg.inv(plda_tr.T.dot(plda_tr))
         B = np.linalg.inv((plda_tr.T / plda_psi).dot(plda_tr))
@@ -162,7 +162,7 @@ def remap_label_numbers(labels):
     for ii, u in enumerate(unq_labels):
         mapping[u] = ii+1  # the labels are 1 based, not 0 based
 
-    labels = list(map(lambda x: mapping[x], labels))
+    labels = np.asarray(list(map(lambda x: mapping[x], labels)), dtype=int)
 
     return labels
 
@@ -301,10 +301,11 @@ if __name__ == '__main__':
                         M = len(np.unique(labels1st))
                         # re-align labels by interpolating the labels to the required shape
                         # for the current segments file, which is
+                        labels1st = remap_label_numbers(labels1st)
                         labels1st = align_labels(labels1st,
                                                  args.segments_file[diarization_pass_ii-1],
                                                  args.segments_file[diarization_pass_ii])
-                        labels1st = remap_label_numbers(labels1st)
+                        #labels1st = remap_label_numbers(labels1st)
                     
                     fea = (x - plda_mu).dot(plda_tr.T)
                     # No dimensionality reduction w/ LDA --> 
@@ -314,9 +315,10 @@ if __name__ == '__main__':
                     # No dimensionality reduction w/ LDA -->  
                     #cov_ac = plda_psi[:args.lda_dim]
                     #labels1st = em_gmm_clean(x.T, W, B, M=M, r=0.9, num_iter=30, init_labels=labels1st)
+                    # TODO: generalize this
+                    num_iter = 30 if diarization_pass_ii == 0 else 2
                     labels1st = em_gmm_clean.em_gmm_clean(fea.T, cov_wc, cov_ac,
-                                                          M=M, r=0.9, num_iter=30, init_labels=labels1st)
-                    print('pass#=', diarization_pass_ii, 'labels1st.unique()', str(np.unique(labels1st)))
+                                                          M=M, r=0.9, num_iter=num_iter, init_labels=labels1st)
             else:
                 raise ValueError('Wrong option for args.initialization.')
 
