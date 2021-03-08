@@ -160,10 +160,9 @@ def remap_label_numbers(labels):
     M = len(unq_labels)
     mapping = {}
     for ii, u in enumerate(unq_labels):
-        mapping[u] = ii
+        mapping[u] = ii+1  # the labels are 1 based, not 0 based
 
-    for ii, l in enumerate(labels):
-        labels[ii] = mapping[l]
+    labels = list(map(lambda x: mapping[x], labels))
 
     return labels
 
