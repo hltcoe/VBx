@@ -25,11 +25,11 @@ def em_gmm_clean(x_in, cov_wc, cov_ac, M=7, r=0.9, num_iter=30, init_labels=None
 
     x = x_in.copy() # Don't change input
     N = x.shape[1]
-    logger.debug("EM GMM, M %d N %d" % (M,N))
+    logger.info("EM GMM, M %d N %d" % (M,N))
 
     # Joint diagonalization if not already diagonalized
     if min(cov_wc.shape) != 1 and len(cov_wc.shape) != 1:
-        logger.debug("Applying joint diagonalization...")
+        logger.info("Applying joint diagonalization...")
         # LDA joint diagonalization to output dimension
         d = np.linalg.matrix_rank(cov_ac)
         Ulda = form_lda(cov_wc, cov_ac, d)
@@ -38,16 +38,16 @@ def em_gmm_clean(x_in, cov_wc, cov_ac, M=7, r=0.9, num_iter=30, init_labels=None
         x = np.dot(Ulda.T,x)
         cov_wc = np.diag(np.dot(Ulda.T,np.dot(cov_wc,Ulda)))
         cov_ac = np.diag(np.dot(Ulda.T,np.dot(cov_ac,Ulda)))
-        logging.debug(str(Ulda))
+        logger.info(str(Ulda))
 
     if init_labels is None:
-        logging.debug("Running kmeans...")
+        logger.info("Running kmeans...")
         KM = KMeans(random_state=0,n_clusters=M,n_init=10)
         cluster_ids = KM.fit_predict(x.T)
         init_labels = cluster_ids+1
 
     # Initialize models with posteriors from clustering
-    logging.debug("Initializing GMM...")
+    logger.info("Initializing GMM...")
     #p0 = 0.0001
     p0 = 0.05/M
     #p1 = 1.0 - (M*p0)
@@ -61,7 +61,7 @@ def em_gmm_clean(x_in, cov_wc, cov_ac, M=7, r=0.9, num_iter=30, init_labels=None
 
     m = M # no loop over speakers in this version
     min_prior = 0.1/N
-    logging.debug("empty cluster threshold %f" % (min_prior))
+    logger.info("empty cluster threshold %f" % (min_prior))
 
     # EM iterations
     for iter in range(num_iter):
@@ -73,11 +73,11 @@ def em_gmm_clean(x_in, cov_wc, cov_ac, M=7, r=0.9, num_iter=30, init_labels=None
             i2 = np.argmin(prior,0)
             posts = np.delete(posts,i2,0)
             m = posts.shape[0]
-            logging.debug(" deleting empty cluster %d, now m = %d" % (i2, m))
+            logger.info(" deleting empty cluster %d, now m = %d" % (i2, m))
             prior = (np.sum(posts,1)/np.sum(posts[:]))[:,np.newaxis]
 
         if verbose:
-            logging.debug("iteration %d" % iter)
+            logger.info("iteration %d" % iter)
             #print prior
 
         p1 = posts.copy()
@@ -103,12 +103,12 @@ def em_gmm_clean(x_in, cov_wc, cov_ac, M=7, r=0.9, num_iter=30, init_labels=None
             log_sum += ltmp
 
         if verbose:
-            logging.debug("m %d, LL %f" % (m, log_sum))
+            logger.info("m %d, LL %f" % (m, log_sum))
 
         # Compute and print new prior
         prior = (np.sum(posts,1)/np.sum(posts[:]))[:,np.newaxis]
-        logging.info("Speaker priors:")
-        logging.info(str(prior))
+        logger.info("Speaker priors:")
+        logger.info(str(prior))
 
     # Return hard cluster labels (could be soft)
     lab = np.argmax(posts,0)+1
