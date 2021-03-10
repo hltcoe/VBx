@@ -125,6 +125,8 @@ if __name__ == '__main__':
                         help='Which engine to use for feature extraction')
     parser.add_argument('--kaldi-fbank-conf', required=False, type=str, default=None,
                         help='Configuration to extract filterbank features')
+    parser.add_argument('--xvector-extractor', required=False, default='but', choices=['but', 'coe'],
+                        help='Which engine to use for xvector extraction')
 
     args = parser.parse_args()
 
@@ -147,10 +149,8 @@ if __name__ == '__main__':
 
     model, label_name, input_name = '', None, None
 
-    use_coe_xvec = args.model_file is not None and args.feat_extraction_engine.lower() == 'kaldi'
-
     if args.backend == 'pytorch':
-        if use_coe_xvec:
+        if args.xvector_extractor == 'coe':
             logger.warning('Using COE Trained XVector w/ xvectors.gen_embed')
             # NOTE: this call current requires that the flags for load_embed_model
             #  are correctly setup.  Need to clean this up later!
@@ -265,19 +265,15 @@ if __name__ == '__main__':
                                     fea = kaldi_feats[start_ii:stop_ii, :]
                                     # print(t_start, t_stop, start_ii, stop_ii)
 
-                                # print(fea.shape, type(fea))
-                                # if segnum > 2:
-                                #     break
-
                                 slen = len(fea)
                                 start = -seg_jump
 
                                 for start in range(0, slen - seg_len, seg_jump):
                                     data = fea[start:start + seg_len]
-                                    if args.feat_extraction_engine.lower() == 'but':
+                                    if args.xvector_extractor.lower() == 'but':
                                         xvector = get_embedding(
                                             data, model, label_name=label_name, input_name=input_name, backend=args.backend)
-                                    elif use_coe_xvec:
+                                    elif args.xvector_extractor.lower() == 'coe':
                                         # ensure that data.T is what we actually expect!!
                                         xvector = coe_xvec_gen_embed.gen_embed(data.T, model).squeeze()
 
@@ -293,10 +289,10 @@ if __name__ == '__main__':
 
                                 if slen - start - seg_jump >= 10:
                                     data = fea[start + seg_jump:slen]
-                                    if args.feat_extraction_engine.lower() == 'but':
+                                    if args.xvector_extractor.lower() == 'but':
                                         xvector = get_embedding(
                                             data, model, label_name=label_name, input_name=input_name, backend=args.backend)
-                                    elif use_coe_xvec:
+                                    elif args.xvector_extractor.lower() == 'coe':
                                         # ensure that data.T is what we actually expect!!
                                         xvector = coe_xvec_gen_embed.gen_embed(data.T, model)
 
