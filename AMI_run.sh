@@ -41,6 +41,7 @@ fi
 BACKEND_DIR=$DIR/VBx/models/ResNet101_16kHz
 if [[ $INSTRUCTION = "diarization" ]]; then
     TASKFILE=$exp_dir/diar_"$METHOD"_task
+    UGE_TASKFILE=$exp_dir/diar_"$METHOD"_uge_task
     OUTFILE=$exp_dir/diar_"$METHOD"_out
     rm -f $TASKFILE $OUTFILE
     mkdir -p $exp_dir/lists
@@ -65,6 +66,7 @@ if [[ $INSTRUCTION = "diarization" ]]; then
         while IFS= read -r line; do
             grep $line $FILE_LIST > $exp_dir/lists/$line".txt"
             echo "python $DIR/VBx/vbhmm.py --init $METHOD --out-rttm-dir $OUT_DIR/rttms --xvec-ark-file $xvec_dir/xvectors/$line.ark --segments-file $xvec_dir/segments/$line --plda-file $BACKEND_DIR/plda --xvec-transform $BACKEND_DIR/transform.h5 --threshold $thr --target-energy $tareng --init-smoothing $smooth --lda-dim $lda_dim --Fa $Fa --Fb $Fb --loopP $loopP" >> $TASKFILE
+        printf "$line " >> $UGE_TASKFILE
         done < $FILE_LIST
 
         printf ")\n\n" >> $UGE_TASKFILE
