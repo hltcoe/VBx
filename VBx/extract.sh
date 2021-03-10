@@ -19,7 +19,7 @@ OUT_DIR=$6
 DEVICE=$7
 
 FEAT_EXTRACT_ENGINE=${8:-but}  # can be but or kaldi
-XVECTOR_EXTRACT_ENGINE={9:-but} # can be but or coe
+XVECTOR_EXTRACT_ENGINE=${9:-but} # can be but or coe
 KALDI_FBANK_CONF=${10:-none}
 EMBED_DIM=${11:-256}  # xvector embedding dimension
 
