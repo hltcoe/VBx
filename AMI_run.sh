@@ -80,12 +80,11 @@ if [[ $INSTRUCTION = "diarization" ]]; then
             nl=$(wc -l < $FILE_LIST)
             qsub -cwd -l num_proc=1,mem_free=4G,h_rt=400:00:00 -N vbxhmm -q $QUEUE -t 1:$nl -sync y -o $OUT_DIR/vbhmm.log -e $OUT_DIR/vbhmm.err $UGE_TASKFILE
         fi
-
-        # Score
-        cat $OUT_DIR/rttms/*.rttm > $OUT_DIR/sys.rttm
-        cat $RTTM_DIR/*.rttm > $OUT_DIR/ref.rttm
-        $DIR/dscore/score.py --collar 0.25 --ignore_overlaps -r $OUT_DIR/ref.rttm -s $OUT_DIR/sys.rttm > $OUT_DIR/result_forgiving
-        $DIR/dscore/score.py --collar 0.25 -r $OUT_DIR/ref.rttm -s $OUT_DIR/sys.rttm > $OUT_DIR/result_fair
-        $DIR/dscore/score.py --collar 0.0 -r $OUT_DIR/ref.rttm -s $OUT_DIR/sys.rttm > $OUT_DIR/result_full
     fi
+    # Score
+    cat $OUT_DIR/rttms/*.rttm > $OUT_DIR/sys.rttm
+    cat $RTTM_DIR/*.rttm > $OUT_DIR/ref.rttm
+    $DIR/dscore/score.py --collar 0.25 --ignore_overlaps -r $OUT_DIR/ref.rttm -s $OUT_DIR/sys.rttm > $OUT_DIR/result_forgiving
+    $DIR/dscore/score.py --collar 0.25 -r $OUT_DIR/ref.rttm -s $OUT_DIR/sys.rttm > $OUT_DIR/result_fair
+    $DIR/dscore/score.py --collar 0.0 -r $OUT_DIR/ref.rttm -s $OUT_DIR/sys.rttm > $OUT_DIR/result_full
 fi
