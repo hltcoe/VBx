@@ -23,8 +23,8 @@ PASS1_SEG_LEN=200   # corresponds to 2 sec
 PASS2_SEG_JUMP=24   # BUT Default
 PASS2_SEG_LEN=144   # BUT Default
 
-FEAT_EXTRACT_ENGINE=kaldi
-XVECTOR_EXTRACTION_ENGINE=coe
+FEAT_EXTRACT_ENGINE=kaldi      # must be but or kaldi
+XVECTOR_EXTRACTION_ENGINE=coe  # must be but or coe
 KALDI_FBANK_CONF=/expscratch/kkarra/train_egs/fbank_8k.conf
 EMBED_DIM=128
 
