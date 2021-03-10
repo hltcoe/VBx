@@ -24,6 +24,7 @@ PASS2_SEG_JUMP=24   # BUT Default
 PASS2_SEG_LEN=144   # BUT Default
 
 FEAT_EXTRACT_ENGINE=kaldi
+XVECTOR_EXTRACTION_ENGINE=coe
 KALDI_FBANK_CONF=/expscratch/kkarra/train_egs/fbank_8k.conf
 EMBED_DIM=128
 
@@ -70,7 +71,7 @@ if [[ $INSTRUCTION == "xvectors" ]]; then
     seg_len="PASS${pass}_SEG_LEN"
     ##################################
     $EXTRACT_SCRIPT ${!model} None $WAV_DIR $LAB_DIR $FILE_LIST $xvec_dir $DEVICE \
-      $FEAT_EXTRACT_ENGINE $KALDI_FBANK_CONF $EMBED_DIM \
+      $FEAT_EXTRACT_ENGINE $XVECTOR_EXTRACTION_ENGINE $KALDI_FBANK_CONF $EMBED_DIM \
       ${!seg_jump} ${!seg_len}
 
     if [ "$QUEUE" = "none" ]; then

@@ -19,12 +19,13 @@ OUT_DIR=$6
 DEVICE=$7
 
 FEAT_EXTRACT_ENGINE=${8:-but}  # can be but or kaldi
-KALDI_FBANK_CONF=${9:-none}
-EMBED_DIM=${10:-256}  # xvector embedding dimension
+XVECTOR_EXTRACT_ENGINE={9:-but} # can be but or coe
+KALDI_FBANK_CONF=${10:-none}
+EMBED_DIM=${11:-256}  # xvector embedding dimension
 
 # BUT default values
-SEG_JUMP=${11:-24}
-SEG_LEN=${12:-144}
+SEG_JUMP=${12:-24}
+SEG_LEN=${13:-144}
 
 # Error Checking for Input
 # if the input is an ONNX model, then MODEL is a string defining the architecture
@@ -89,15 +90,15 @@ while IFS= read -r line; do
     mkdir -p "$(dirname $OUT_SEG_FILE)"
     if [[ "$DEVICE" == "gpu" ]]; then
       if [[ "$backend" == "onnx" ]] || [[ "$backend" == "pytorch" && "$model_f" -eq 0 ]]; then
-    	  echo "python $DIR/predict.py --seg-len $SEG_LEN --seg-jump $SEG_JUMP --model $MODEL --weights $WEIGHTS --backend $backend --feat-extraction-engine $FEAT_EXTRACT_ENGINE --gpus=\$($DIR/free_gpu.sh) --ndim 64 --embed-dim $EMBED_DIM --in-file-list $OUT_DIR/lists/$line".txt" --in-lab-dir $LAB_DIR --in-wav-dir $WAV_DIR --out-ark-fn $OUT_ARK_FILE --out-seg-fn $OUT_SEG_FILE" >> $TASKFILE
+    	  echo "python $DIR/predict.py --seg-len $SEG_LEN --seg-jump $SEG_JUMP --model $MODEL --weights $WEIGHTS --backend $backend --feat-extraction-engine $FEAT_EXTRACT_ENGINE  --xvector-extractor $XVECTOR_EXTRACT_ENGINE --gpus=\$($DIR/free_gpu.sh) --ndim 64 --embed-dim $EMBED_DIM --in-file-list $OUT_DIR/lists/$line".txt" --in-lab-dir $LAB_DIR --in-wav-dir $WAV_DIR --out-ark-fn $OUT_ARK_FILE --out-seg-fn $OUT_SEG_FILE" >> $TASKFILE
     	else
-  	    echo "python $DIR/predict.py --seg-len $SEG_LEN --seg-jump $SEG_JUMP --model-file $MODEL --backend $backend --feat-extraction-engine $FEAT_EXTRACT_ENGINE --kaldi-fbank-conf $KALDI_FBANK_CONF --gpus=\$($DIR/free_gpu.sh) --ndim 64 --embed-dim $EMBED_DIM --in-file-list $OUT_DIR/lists/$line".txt" --in-lab-dir $LAB_DIR --in-wav-dir $WAV_DIR --out-ark-fn $OUT_ARK_FILE --out-seg-fn $OUT_SEG_FILE" >> $TASKFILE
+  	    echo "python $DIR/predict.py --seg-len $SEG_LEN --seg-jump $SEG_JUMP --model-file $MODEL --backend $backend --feat-extraction-engine $FEAT_EXTRACT_ENGINE --kaldi-fbank-conf $KALDI_FBANK_CONF  --xvector-extractor $XVECTOR_EXTRACT_ENGINE --gpus=\$($DIR/free_gpu.sh) --ndim 64 --embed-dim $EMBED_DIM --in-file-list $OUT_DIR/lists/$line".txt" --in-lab-dir $LAB_DIR --in-wav-dir $WAV_DIR --out-ark-fn $OUT_ARK_FILE --out-seg-fn $OUT_SEG_FILE" >> $TASKFILE
     	fi
     else
       if [[ "$backend" == "onnx" ]] || [[ "$backend" == "pytorch" && "$model_f" -eq 0 ]]; then
-    	  echo "python $DIR/predict.py --seg-len $SEG_LEN --seg-jump $SEG_JUMP --model $MODEL --weights $WEIGHTS --backend $backend --feat-extraction-engine $FEAT_EXTRACT_ENGINE --ndim 64 --embed-dim $EMBED_DIM --in-file-list $OUT_DIR/lists/$line".txt" --in-lab-dir $LAB_DIR --in-wav-dir $WAV_DIR --out-ark-fn $OUT_ARK_FILE --out-seg-fn $OUT_SEG_FILE" >> $TASKFILE
+    	  echo "python $DIR/predict.py --seg-len $SEG_LEN --seg-jump $SEG_JUMP --model $MODEL --weights $WEIGHTS --backend $backend --feat-extraction-engine $FEAT_EXTRACT_ENGINE  --xvector-extractor $XVECTOR_EXTRACT_ENGINE --ndim 64 --embed-dim $EMBED_DIM --in-file-list $OUT_DIR/lists/$line".txt" --in-lab-dir $LAB_DIR --in-wav-dir $WAV_DIR --out-ark-fn $OUT_ARK_FILE --out-seg-fn $OUT_SEG_FILE" >> $TASKFILE
     	else
-    	  echo "python $DIR/predict.py --seg-len $SEG_LEN --seg-jump $SEG_JUMP --model-file $MODEL --backend $backend --feat-extraction-engine $FEAT_EXTRACT_ENGINE --kaldi-fbank-conf $KALDI_FBANK_CONF --ndim 64 --embed-dim $EMBED_DIM --in-file-list $OUT_DIR/lists/$line".txt" --in-lab-dir $LAB_DIR --in-wav-dir $WAV_DIR --out-ark-fn $OUT_ARK_FILE --out-seg-fn $OUT_SEG_FILE" >> $TASKFILE
+    	  echo "python $DIR/predict.py --seg-len $SEG_LEN --seg-jump $SEG_JUMP --model-file $MODEL --backend $backend --feat-extraction-engine $FEAT_EXTRACT_ENGINE --kaldi-fbank-conf $KALDI_FBANK_CONF  --xvector-extractor $XVECTOR_EXTRACT_ENGINE --ndim 64 --embed-dim $EMBED_DIM --in-file-list $OUT_DIR/lists/$line".txt" --in-lab-dir $LAB_DIR --in-wav-dir $WAV_DIR --out-ark-fn $OUT_ARK_FILE --out-seg-fn $OUT_SEG_FILE" >> $TASKFILE
     	fi
     fi
 done < $FILE_LIST
@@ -109,8 +110,8 @@ echo "file_uge=\${flist[\$((\${SGE_TASK_ID}-1))]}" >> $UGE_TASKFILE
 echo "out_ark_file_uge=$OUT_DIR/xvectors/\${file_uge}.ark" >> $UGE_TASKFILE
 echo "out_seg_file_uge=$OUT_DIR/segments/\${file_uge}" >> $UGE_TASKFILE
 if [[ "$backend" == "onnx" ]] || [[ "$backend" == "pytorch" && "$model_f" -eq 0 ]]; then
-  echo "python $DIR/predict.py --seg-len $SEG_LEN --seg-jump $SEG_JUMP --model $MODEL --weights $WEIGHTS --backend $backend --feat-extraction-engine $FEAT_EXTRACT_ENGINE --ndim 64 --embed-dim $EMBED_DIM --in-file-list $OUT_DIR/lists/\${file_uge}".txt" --in-lab-dir $LAB_DIR --in-wav-dir $WAV_DIR --out-ark-fn \$out_ark_file_uge --out-seg-fn \$out_seg_file_uge" >> $UGE_TASKFILE
+  echo "python $DIR/predict.py --seg-len $SEG_LEN --seg-jump $SEG_JUMP --model $MODEL --weights $WEIGHTS --backend $backend --feat-extraction-engine $FEAT_EXTRACT_ENGINE  --xvector-extractor $XVECTOR_EXTRACT_ENGINE --ndim 64 --embed-dim $EMBED_DIM --in-file-list $OUT_DIR/lists/\${file_uge}".txt" --in-lab-dir $LAB_DIR --in-wav-dir $WAV_DIR --out-ark-fn \$out_ark_file_uge --out-seg-fn \$out_seg_file_uge" >> $UGE_TASKFILE
 else
-  echo "python $DIR/predict.py --seg-len $SEG_LEN --seg-jump $SEG_JUMP --model-file $MODEL --backend $backend --feat-extraction-engine $FEAT_EXTRACT_ENGINE --kaldi-fbank-conf $KALDI_FBANK_CONF --ndim 64 --embed-dim $EMBED_DIM --in-file-list $OUT_DIR/lists/\${file_uge}".txt" --in-lab-dir $LAB_DIR --in-wav-dir $WAV_DIR --out-ark-fn \$out_ark_file_uge --out-seg-fn \$out_seg_file_uge" >> $UGE_TASKFILE
+  echo "python $DIR/predict.py --seg-len $SEG_LEN --seg-jump $SEG_JUMP --model-file $MODEL --backend $backend --feat-extraction-engine $FEAT_EXTRACT_ENGINE --kaldi-fbank-conf $KALDI_FBANK_CONF  --xvector-extractor $XVECTOR_EXTRACT_ENGINE --ndim 64 --embed-dim $EMBED_DIM --in-file-list $OUT_DIR/lists/\${file_uge}".txt" --in-lab-dir $LAB_DIR --in-wav-dir $WAV_DIR --out-ark-fn \$out_ark_file_uge --out-seg-fn \$out_seg_file_uge" >> $UGE_TASKFILE
 fi
 
