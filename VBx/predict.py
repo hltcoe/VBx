@@ -18,6 +18,11 @@ import torch.backends
 import features
 from models.resnet import *
 
+import torchaudio
+import xvectors.gen_embed as coe_xvec_gen_embed
+from tqdm.auto import tqdm
+import socket
+
 torch.backends.cudnn.enabled = False
 
 logger = logging.getLogger(__name__)
@@ -74,15 +79,35 @@ def get_embedding(fea, model, label_name=None, input_name=None, backend='pytorch
         return spk_embeds.data.cpu().numpy()[0]
     elif backend == 'onnx':
         return model.run([label_name],
-                  {input_name: fea.astype(np.float32).transpose()
-                  [np.newaxis, :, :]})[0].squeeze()
+                         {input_name: fea.astype(np.float32).transpose()
+                         [np.newaxis, :, :]})[0].squeeze()
+
+
+def parse_kaldi_cfg(cfg_in):
+    with open(cfg_in, 'r') as f:
+        all_lines = f.readlines()
+    # remove trailing new-lines and remove comments
+    all_lines_cleaned = [x.rstrip().split('#')[0] for x in all_lines]
+    # convert to dictionary
+    cfg_dict = {}
+    for l in all_lines_cleaned:
+        l_split = l.split('=')
+        k = l_split[0].split('--')[1].replace('-', '_')  # make this compatible w/ call to torchaudio.kaldi.compliance
+        v = l_split[1].rstrip()
+        if v == 'true':
+            cfg_dict[k] = True
+        elif v == 'false':
+            cfg_dict[k] = False
+        else:
+            cfg_dict[k] = int(v)
+    return cfg_dict
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--gpus', type=str, default='', help='use gpus (passed to CUDA_VISIBLE_DEVICES)')
     parser.add_argument('--model', required=False, type=str, default=None, help='name of the model')
-    parser.add_argument('--weights', required=True, type=str, default=None, help='path to pretrained model weights')
+    parser.add_argument('--weights', required=False, type=str, default=None, help='path to pretrained model weights')
     parser.add_argument('--model-file', required=False, type=str, default=None, help='path to model file')
     parser.add_argument('--ndim', required=False, type=int, default=64, help='dimensionality of features')
     parser.add_argument('--embed-dim', required=False, type=int, default=256, help='dimensionality of the emb')
@@ -95,6 +120,13 @@ if __name__ == '__main__':
     parser.add_argument('--out-seg-fn', required=True, type=str, help='output segments file')
     parser.add_argument('--backend', required=False, default='pytorch', choices=['pytorch', 'onnx'],
                         help='backend that is used for x-vector extraction')
+
+    parser.add_argument('--feat-extraction-engine', required=False, default='but', choices=['but', 'kaldi'],
+                        help='Which engine to use for feature extraction')
+    parser.add_argument('--kaldi-fbank-conf', required=False, type=str, default=None,
+                        help='Configuration to extract filterbank features')
+    parser.add_argument('--xvector-extractor', required=False, default='but', choices=['but', 'coe'],
+                        help='Which engine to use for xvector extraction')
 
     args = parser.parse_args()
 
@@ -109,20 +141,31 @@ if __name__ == '__main__':
         initialize_gpus(args)
         device = torch.device(device='cuda')
     else:
+        logger.info('Using CPU for XVector extraction!')
         device = torch.device(device='cpu')
+        os.environ["CUDA_VISIBLE_DEVICES"] = ""
+
+    logger.info('Running on: ' + str(socket.gethostname()))
 
     model, label_name, input_name = '', None, None
 
     if args.backend == 'pytorch':
-        if args.model_file is not None:
-            model = torch.load(args.model_file)
+        if args.xvector_extractor == 'coe':
+            logger.warning('Using COE Trained XVector w/ xvectors.gen_embed')
+            # NOTE: this call current requires that the flags for load_embed_model
+            #  are correctly setup.  Need to clean this up later!
+            model = coe_xvec_gen_embed.load_embed_model(args.model_file, device=device)
             model = model.to(device)
-        elif args.model is not None and args.weights is not None:
-            model = eval(args.model)(feat_dim=args.ndim, embed_dim=args.embed_dim)
-            model = model.to(device)
-            checkpoint = torch.load(args.weights, map_location=device)
-            model.load_state_dict(checkpoint['state_dict'], strict=False)
-            model.eval()
+        else:
+            if args.model_file is not None:
+                model = torch.load(args.model_file)
+                model = model.to(device)
+            elif args.model is not None and args.weights is not None:
+                model = eval(args.model)(feat_dim=args.ndim, embed_dim=args.embed_dim)
+                model = model.to(device)
+                checkpoint = torch.load(args.weights, map_location=device)
+                model.load_state_dict(checkpoint['state_dict'], strict=False)
+                model.eval()
     elif args.backend == 'onnx':
         model = onnxruntime.InferenceSession(args.weights)
         input_name = model.get_inputs()[0].name
@@ -140,8 +183,10 @@ if __name__ == '__main__':
                 for fn in file_names:
                     with Timer(f'Processing file {fn}'):
                         signal, samplerate = sf.read(f'{os.path.join(args.in_wav_dir, fn)}.wav')
-                        labs = np.atleast_2d((np.loadtxt(f'{os.path.join(args.in_lab_dir, fn)}.lab',
-                                                         usecols=(0, 1)) * samplerate).astype(int))
+                        labs_t = np.atleast_2d((np.loadtxt(f'{os.path.join(args.in_lab_dir, fn)}.lab',
+                                                         usecols=(0, 1))))
+                        labs = labs_t*samplerate
+                        labs = labs.astype(int)
                         if samplerate == 8000:
                             noverlap = 120
                             winlen = 200
@@ -160,25 +205,77 @@ if __name__ == '__main__':
                         LC = 150
                         RC = 149
 
-                        np.random.seed(3)  # for reproducibility
-                        signal = features.add_dither((signal*2**15).astype(int))
+                        if args.feat_extraction_engine.lower() == 'kaldi':
+                            if args.kaldi_fbank_conf is None:
+                                raise ValueError("kaldi-fbank-conf must be specified if using "
+                                                 "Kaldi feature extraction engine")
 
-                        for segnum in range(len(labs)):
+                            fbank_config_dict = parse_kaldi_cfg(args.kaldi_fbank_conf)
+                            remove_keys = ['allow_downsample']
+                            for k in remove_keys:
+                                fbank_config_dict.pop(k, None)
+                            fbank_config_dict['sample_frequency'] = samplerate                            
+ 
+                            x = torch.Tensor(signal)
+                            if len(signal.shape) == 1:
+                                # need to add a dimension to add as the "channel"
+                                x = torch.unsqueeze(x, 0)
+                            kaldi_feats = torchaudio.compliance.kaldi.fbank(x, **fbank_config_dict)
+                            #  apply-cmvn-sliding --norm-vars=false --center=true --cmn-window=300
+                            #  default values for Kaldi call can be found here:
+                            #  https://github.com/kaldi-asr/kaldi/blob/bcd163c5ae45a9dcc488c86e98281649b8156529/src/feat/feature-functions.h#L165
+                            kaldi_feats = torchaudio.functional.sliding_window_cmn(kaldi_feats,
+                                                                                   cmn_window=300,
+                                                                                   center=True,
+                                                                                   norm_vars=False)
+                            kaldi_feats = kaldi_feats.numpy()
+
+                            # ensure size of feature file is what we expect
+                            n_feats, feat_dim = kaldi_feats.shape
+                            frameshift_ms = fbank_config_dict.get('frame-shift', 10)
+
+                            # TODO: discuss with Alan whether this is necessary.  It was failing on the callhome
+                            #  with: max(abs(expected_nfeats-nfeats))=8, but mean(abs(expected_nfeats-nfeats))=2
+                            #frameshift_samps = int(frameshift_ms/1000. * samplerate)
+                            #expected_nfeats = len(signal)/frameshift_samps
+                            #nfeats_tol = 2
+                            #assert abs(n_feats-expected_nfeats) < nfeats_tol, \
+                            #    "Number of generated features is not within expected range! n_feats=%d n_expected_feats=%d" % (n_feats, expected_nfeats)
+
+                        elif args.feat_extraction_engine.lower() == 'but':
+                            np.random.seed(3)  # for reproducibility
+                            signal = features.add_dither((signal * 2 ** 15).astype(int))
+
+                        for segnum in tqdm(range(len(labs))):
                             seg = signal[labs[segnum, 0]:labs[segnum, 1]]
-                            if seg.shape[0] > 0.01*samplerate: # process segment only if longer than 0.01s
-                                # Mirror noverlap//2 initial and final samples
-                                seg = np.r_[seg[noverlap // 2 - 1::-1],
-                                            seg, seg[-1:-winlen // 2 - 1:-1]]
-                                fea = features.fbank_htk(seg, window, noverlap, fbank_mx, USEPOWER=True, ZMEANSOURCE=True)
-                                fea = features.cmvn_floating_kaldi(fea, LC, RC, norm_vars=False).astype(np.float32)
+                            if seg.shape[0] > 0.01 * samplerate:  # process segment only if longer than 0.01s
+                                if args.feat_extraction_engine.lower() == 'but':
+                                    # Mirror noverlap//2 initial and final samples
+                                    seg = np.r_[seg[noverlap // 2 - 1::-1],
+                                                seg, seg[-1:-winlen // 2 - 1:-1]]
+                                    fea = features.fbank_htk(seg, window, noverlap, fbank_mx, USEPOWER=True,
+                                                             ZMEANSOURCE=True)
+                                    fea = features.cmvn_floating_kaldi(fea, LC, RC, norm_vars=False).astype(np.float32)
+                                elif args.feat_extraction_engine.lower() == 'kaldi':
+                                    t_start = labs_t[segnum, 0]   # in units of seconds
+                                    t_stop = labs_t[segnum, 1]    # in units of seconds
+                                    frameshift_s = frameshift_ms/1000.
+                                    start_ii = int(np.floor(t_start/frameshift_s))
+                                    stop_ii = int(np.ceil(t_stop/frameshift_s))
+                                    fea = kaldi_feats[start_ii:stop_ii, :]
+                                    # print(t_start, t_stop, start_ii, stop_ii)
 
                                 slen = len(fea)
                                 start = -seg_jump
 
                                 for start in range(0, slen - seg_len, seg_jump):
                                     data = fea[start:start + seg_len]
-                                    xvector = get_embedding(
-                                        data, model, label_name=label_name, input_name=input_name, backend=args.backend)
+                                    if args.xvector_extractor.lower() == 'but':
+                                        xvector = get_embedding(
+                                            data, model, label_name=label_name, input_name=input_name, backend=args.backend)
+                                    elif args.xvector_extractor.lower() == 'coe':
+                                        # ensure that data.T is what we actually expect!!
+                                        xvector = coe_xvec_gen_embed.gen_embed(data.T, model).squeeze()
 
                                     key = f'{fn}_{segnum:04}-{start:08}-{(start + seg_len):08}'
                                     if np.isnan(xvector).any():
@@ -192,8 +289,12 @@ if __name__ == '__main__':
 
                                 if slen - start - seg_jump >= 10:
                                     data = fea[start + seg_jump:slen]
-                                    xvector = get_embedding(
-                                        data, model, label_name=label_name, input_name=input_name, backend=args.backend)
+                                    if args.xvector_extractor.lower() == 'but':
+                                        xvector = get_embedding(
+                                            data, model, label_name=label_name, input_name=input_name, backend=args.backend)
+                                    elif args.xvector_extractor.lower() == 'coe':
+                                        # ensure that data.T is what we actually expect!!
+                                        xvector = coe_xvec_gen_embed.gen_embed(data.T, model)
 
                                     key = f'{fn}_{segnum:04}-{(start + seg_jump):08}-{slen:08}'
 
