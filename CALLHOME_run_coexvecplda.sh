@@ -39,7 +39,7 @@ fi
 passes=($(seq 1 1 $NUM_PASS))
 
 # verify models/seg_jump/seg_len for each pass is defined
-for pass in ${passes[@]}; do
+for pass in "${passes[@]}"; do
   # model, seg_jump, and seg_len are dynamic bash variables.
   # See: https://stackoverflow.com/a/65021258/1057098
   model="XVEC_PLDA_MODEL$pass"
