@@ -16,8 +16,7 @@ QUEUE=${10:-none}
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 # define models and configurations for each pass
-# TODO: change this to a WB model
-XVEC_PLDA_MODEL1="/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test_sgd/Updated/Test_freeze_2s_dc_vb/Test_1gpu/models/checkpoint-latest.pth"
+XVEC_PLDA_MODEL1="/expscratch/amccree/pytorch/v12/ResNet/Test_sc1/models/checkpoint-latest.pth"
 XVEC_PLDA_MODEL2=$XVEC_PLDA_MODEL1
 PASS1_SEG_JUMP=200  # corresponds to ovlp=0
 PASS1_SEG_LEN=200   # corresponds to 2 sec
@@ -26,7 +25,7 @@ PASS2_SEG_LEN=144   # BUT Default
 
 FEAT_EXTRACT_ENGINE=kaldi
 XVECTOR_EXTRACTION_ENGINE=coe
-KALDI_FBANK_CONF=/expscratch/kkarra/train_egs/fbank_8k.conf
+KALDI_FBANK_CONF=/expscratch/kkarra/train_egs/fbank_16k.conf
 EMBED_DIM=128
 
 if (("$NUM_PASS" < 1)); then
@@ -79,7 +78,7 @@ if [[ $INSTRUCTION == "xvectors" ]]; then
       bash $xvec_dir/xv_task
     else
       nl=$(wc -l <$FILE_LIST)
-      qsub -cwd -l num_proc=1,mem_free=4G,h_rt=400:00:00 -q $QUEUE -t 1:$nl -sync y -o $xvec_dir/extract.log -e $xvec_dir/extract.err $xvec_dir/uge_xv_task.sh
+      qsub -cwd -l num_proc=1,mem_free=4G,h_rt=400:00:00 -q $QUEUE -t 1:$nl -sync y -o $xvec_dir/extract.log/ -e $xvec_dir/extract.err/ $xvec_dir/uge_xv_task.sh
     fi
   done
 fi
@@ -159,7 +158,7 @@ if [[ $INSTRUCTION == "diarization" ]]; then
 
       echo $cmd_str >> $UGE_TASKFILE
       nl=$(wc -l <$FILE_LIST)
-      qsub -cwd -l num_proc=1,mem_free=4G,h_rt=400:00:00 -N vbxhmm -q $QUEUE -t 1:$nl -sync y -o $OUT_DIR/vbhmm.log -e $OUT_DIR/vbhmm.err $UGE_TASKFILE
+      qsub -cwd -l num_proc=1,mem_free=4G,h_rt=400:00:00 -N vbxhmm -q $QUEUE -t 1:$nl -sync y -o $OUT_DIR/vbhmm.log/ -e $OUT_DIR/vbhmm.err/ $UGE_TASKFILE
     fi
   fi
 

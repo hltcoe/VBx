@@ -20,7 +20,7 @@ DEVICE=$7
 
 FEAT_EXTRACT_ENGINE=${8:-but}  # can be but or kaldi
 XVECTOR_EXTRACT_ENGINE=${9:-but} # can be but or coe
-KALDI_FBANK_CONF=${10:-none}
+KALDI_FBANK_CONF=${10:-none}     # if supplied, will override ndim argument into predict.py
 EMBED_DIM=${11:-256}  # xvector embedding dimension
 
 # BUT default values
