@@ -25,6 +25,9 @@ def em_gmm_clean(x_in, cov_wc, cov_ac, M=7, r=0.9, num_iter=30, init_labels=None
 
     x = x_in.copy() # Don't change input
     N = x.shape[1]
+    if M > N/2:
+        M = N//2
+        logger.warning(" M too large for N, reset to %d" % (M,))
     logger.info("EM GMM, M %d N %d" % (M,N))
 
     # Joint diagonalization if not already diagonalized
