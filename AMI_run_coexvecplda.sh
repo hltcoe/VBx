@@ -8,8 +8,7 @@ xvec_dir_base=$4 # output xvectors directory
 WAV_DIR=$5       # wav files directory
 FILE_LIST=$6     # txt list of files to process
 LAB_DIR=$7       # lab files directory with VAD segments
-#RTTM_DIR=$8 # reference rttm files directory
-REF_RTTM=$8
+RTTM_DIR=$8 # reference rttm files directory
 NUM_PASS=${9:-1}
 QUEUE=${10:-none}
 
@@ -83,7 +82,6 @@ if [[ $INSTRUCTION == "xvectors" ]]; then
   done
 fi
 
-BACKEND_DIR=$DIR/VBx/models/ResNet101_8kHz
 if [[ $INSTRUCTION == "diarization" ]]; then
   TASKFILE=$exp_dir/diar_"$METHOD"_task
   UGE_TASKFILE=$exp_dir/diar_"$METHOD"_uge_task
@@ -94,8 +92,6 @@ if [[ $INSTRUCTION == "diarization" ]]; then
   echo "#!/bin/bash" >>$UGE_TASKFILE
   echo ". /etc/profile.d/modules.sh" >>$UGE_TASKFILE
   echo "module load cuda11.0/blas/11.0.3 cuda11.0/toolkit/11.0.3 cudnn/8.0.2_cuda11.0"
-  echo "source deactivate" >>$UGE_TASKFILE
-  echo "source activate xvec" >>$UGE_TASKFILE
   printf "flist=(" >>$UGE_TASKFILE
 
   thr=-0.015
@@ -164,8 +160,7 @@ if [[ $INSTRUCTION == "diarization" ]]; then
 
   ## Score
   cat $OUT_DIR/rttms/*.rttm >$OUT_DIR/sys.rttm
-  #cat $RTTM_DIR/*.rttm > $OUT_DIR/ref.rttm
-  cp $REF_RTTM $OUT_DIR/ref.rttm
+  cat $RTTM_DIR/*.rttm > $OUT_DIR/ref.rttm
   $DIR/dscore/score.py --collar 0.25 --ignore_overlaps -r $OUT_DIR/ref.rttm -s $OUT_DIR/sys.rttm > $OUT_DIR/result_forgiving
   $DIR/dscore/score.py --collar 0.25 -r $OUT_DIR/ref.rttm -s $OUT_DIR/sys.rttm >$OUT_DIR/result_fair
   $DIR/dscore/score.py --collar 0.0 -r $OUT_DIR/ref.rttm -s $OUT_DIR/sys.rttm >$OUT_DIR/result_full
