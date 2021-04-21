@@ -19,31 +19,31 @@ r=${13:-0.9}
 N0_firstpass=${14:-25}
 N0_secondpass=${15:-25}
 k_means_only=${16:-0}
+model_type=${17:-"wb"}   # can be nb [narrowband] or wb [wideband]
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
-model_type="wb"  # can be wb or nb
-#model_type="nb"
-
 # define models and configurations for each pass
 if [[ $model_type == "wb" ]]; then
-    XVEC_PLDA_MODEL1="/expscratch/amccree/pytorch/v12/ResNet/Test_sc0.5/models/checkpoint-latest.pth"
+#    XVEC_PLDA_MODEL1="/expscratch/amccree/pytorch/v12/ResNet/Test_sc0.5/models/checkpoint-latest.pth"
+#    XVEC_PLDA_MODEL2="/expscratch/amccree/pytorch/v12/ResNet/Test_sc0.5/models/checkpoint-latest.pth"
+    XVEC_PLDA_MODEL1="/expscratch/kkarra/xvec_trained_models/wb/resnet_wb_sc0.5.pt"
+    XVEC_PLDA_MODEL2="/expscratch/kkarra/xvec_trained_models/wb/resnet_wb_sc0.5.pt"
+    KALDI_FBANK_CONF="/expscratch/kkarra/xvec_trained_models/wb/fbank_16k.conf"
     PASS1_SEG_JUMP=200
     PASS1_SEG_LEN=200
-    XVEC_PLDA_MODEL2="/expscratch/amccree/pytorch/v12/ResNet/Test_sc0.5/models/checkpoint-latest.pth"  # TODO: update this model defn!
     PASS2_SEG_JUMP=25
     PASS2_SEG_LEN=125
-    KALDI_FBANK_CONF="/expscratch/kkarra/train_egs/fbank_16k.conf"
 elif [[ $model_type == "nb" ]]; then
-    #XVEC_PLDA_MODEL1="/expscratch/amccree/pytorch/v10_gauss_lnorm/sgd_768_128_but_feats/Refine_2s_old/models/checkpoint-latest.pth"
-    #XVEC_PLDA_MODEL2="/expscratch/amccree/pytorch/v10_gauss_lnorm/sgd_768_128_but_feats/Refine_1s_old/models/checkpoint-latest.pth"
-    XVEC_PLDA_MODEL1="/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test_sgd/Updated/Test_freeze_2s/models/checkpoint-latest.pth"
-    XVEC_PLDA_MODEL2="/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test_sgd/Updated/Test_freeze_1_25s/models/checkpoint-latest.pth"
+#    XVEC_PLDA_MODEL1="/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test_sgd/Updated/Test_freeze_2s/models/checkpoint-latest.pth"
+#    XVEC_PLDA_MODEL2="/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test_sgd/Updated/Test_freeze_1_25s/models/checkpoint-latest.pth"
+    XVEC_PLDA_MODEL1="/expscratch/kkarra/xvec_trained_models/nb/tdnn_nb_2s.pt"
+    XVEC_PLDA_MODEL2="/expscratch/kkarra/xvec_trained_models/nb/tdnn_nb_1_25s.pt"
+    KALDI_FBANK_CONF="/expscratch/kkarra/xvec_trained_models/nb/fbank_8k.conf"
     PASS1_SEG_JUMP=200  # corresponds to ovlp=0
     PASS1_SEG_LEN=200   # corresponds to 2 sec
     PASS2_SEG_JUMP=25   
     PASS2_SEG_LEN=125
-    KALDI_FBANK_CONF="/expscratch/kkarra/train_egs/fbank_8k.conf"
 else
     echo "Unknown model_type specified: $model_type"
     exit 1

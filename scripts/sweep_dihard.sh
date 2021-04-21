@@ -43,7 +43,7 @@ for num_iter in "${num_iter_vec[@]}"; do
                     rm -rf $exp_root/out_dir_GMM/
 
                     # sweeping over N0 in first pass only
-                    #./DIHARD2_run_coexvecplda.sh diarization GMM $exp_root $exp_root/xvectors $exp_root/../audio_wav/dev $exp_root/../flist_dev.txt $exp_root/../sad_dev $exp_root/../dihard2_dev.rttm $num_passes all.q $num_iter $M $r $N0 $N0
+                    #./DIHARD2_run_2pass.sh diarization GMM $exp_root $exp_root/xvectors $exp_root/../audio_wav/dev $exp_root/../flist_dev.txt $exp_root/../sad_dev $exp_root/../dihard2_dev.rttm $num_passes all.q $num_iter $M $r $N0 $N0
 
                     # sweep over N0 in second pass only
                     ./DIHARD2_run_coexvecplda.sh diarization GMM $exp_root $exp_root/xvectors $exp_root/../audio_wav/dev $exp_root/../flist_dev.txt $exp_root/../sad_dev $exp_root/../dihard2_dev.rttm $num_passes all.q $num_iter $M $r $N0_firstpass $N0

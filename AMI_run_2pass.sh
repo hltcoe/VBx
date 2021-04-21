@@ -8,8 +8,7 @@ xvec_dir_base=$4 # output xvectors directory
 WAV_DIR=$5       # wav files directory
 FILE_LIST=$6     # txt list of files to process
 LAB_DIR=$7       # lab files directory with VAD segments
-#RTTM_DIR=$8 # reference rttm files directory
-REF_RTTM=$8
+RTTM_DIR=$8 # reference rttm files directory
 NUM_PASS=${9:-1}
 QUEUE=${10:-none}
 
@@ -19,24 +18,39 @@ r=${13:-0.9}
 N0_firstpass=${14:-50}
 N0_secondpass=${15:-50}
 k_means_only=${16:-0}
+model_type=${17:-"wb"}   # can be nb [narrowband] or wb [wideband]
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
-# define models and configurations for each pass
-#XVEC_PLDA_MODEL1="/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test_sgd/Updated/Test_freeze_2s/models/checkpoint-latest.pth"
-#XVEC_PLDA_MODEL2="/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test_sgd/Updated/Test_freeze_1_25s/models/checkpoint-latest.pth"
-XVEC_PLDA_MODEL1="/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test_sgd/Updated/Test_freeze_2s/models/checkpoint-latest.pth"
-XVEC_PLDA_MODEL2="/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test_sgd/Updated/Test_freeze_1_25s/models/checkpoint-latest.pth"
-PASS1_SEG_JUMP=200  # corresponds to ovlp=0
-PASS1_SEG_LEN=200   # corresponds to 2 sec
-#PASS2_SEG_JUMP=24   # BUT Default
-#PASS2_SEG_LEN=144   # BUT Default
-PASS2_SEG_JUMP=25   # 
-PASS2_SEG_LEN=125   # 
-
-FEAT_EXTRACT_ENGINE=kaldi      # must be but or kaldi
-XVECTOR_EXTRACTION_ENGINE=coe  # must be but or coe
-KALDI_FBANK_CONF=/expscratch/kkarra/train_egs/fbank_8k.conf
+if [[ $model_type == "wb" ]]; then
+#    XVEC_PLDA_MODEL1="/expscratch/amccree/pytorch/v12/ResNet/Test_sc0.5/models/checkpoint-latest.pth"
+#    XVEC_PLDA_MODEL2="/expscratch/amccree/pytorch/v12/ResNet/Test_sc0.5/models/checkpoint-latest.pth"
+#    KALDI_FBANK_CONF="/expscratch/kkarra/train_egs/fbank_16k.conf"
+    XVEC_PLDA_MODEL1="/expscratch/kkarra/xvec_trained_models/wb/resnet_wb_sc0.5.pt"
+    XVEC_PLDA_MODEL2="/expscratch/kkarra/xvec_trained_models/wb/resnet_wb_sc0.5.pt"
+    KALDI_FBANK_CONF="/expscratch/kkarra/xvec_trained_models/wb/fbank_16k.conf"
+    PASS1_SEG_JUMP=200
+    PASS1_SEG_LEN=200
+    PASS2_SEG_JUMP=25
+    PASS2_SEG_LEN=125
+elif [[ $model_type == "nb" ]]; then
+    # define models and configurations for each pass
+#    XVEC_PLDA_MODEL1="/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test_sgd/Updated/Test_freeze_2s/models/checkpoint-latest.pth"
+#    XVEC_PLDA_MODEL2="/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test_sgd/Updated/Test_freeze_1_25s/models/checkpoint-latest.pth"
+#    KALDI_FBANK_CONF=/expscratch/kkarra/train_egs/fbank_8k.conf
+    XVEC_PLDA_MODEL1="/expscratch/kkarra/xvec_trained_models/nb/tdnn_nb_2s.pt"
+    XVEC_PLDA_MODEL2="/expscratch/kkarra/xvec_trained_models/nb/tdnn_nb_1_25s.pt"
+    KALDI_FBANK_CONF="/expscratch/kkarra/xvec_trained_models/nb/fbank_8k.conf"
+    PASS1_SEG_JUMP=200  # corresponds to ovlp=0
+    PASS1_SEG_LEN=200   # corresponds to 2 sec
+    PASS2_SEG_JUMP=25   
+    PASS2_SEG_LEN=125
+else
+    echo "invalid model type: $model_type"
+    exit 1
+fi
+FEAT_EXTRACT_ENGINE=kaldi
+XVECTOR_EXTRACTION_ENGINE=coe
 EMBED_DIM=128
 
 if (("$NUM_PASS" < 1)); then
@@ -94,7 +108,6 @@ if [[ $INSTRUCTION == "xvectors" ]]; then
   done
 fi
 
-BACKEND_DIR=$DIR/VBx/models/ResNet101_8kHz
 if [[ $INSTRUCTION == "diarization" ]]; then
   TASKFILE=$exp_dir/diar_"$METHOD"_task
   UGE_TASKFILE=$exp_dir/diar_"$METHOD"_uge_task
@@ -105,16 +118,14 @@ if [[ $INSTRUCTION == "diarization" ]]; then
   echo "#!/bin/bash" >>$UGE_TASKFILE
   echo ". /etc/profile.d/modules.sh" >>$UGE_TASKFILE
   echo "module load cuda11.0/blas/11.0.3 cuda11.0/toolkit/11.0.3 cudnn/8.0.2_cuda11.0"
-  echo "source deactivate" >>$UGE_TASKFILE
-  echo "source activate xvec" >>$UGE_TASKFILE
   printf "flist=(" >>$UGE_TASKFILE
 
   thr=-0.015
   tareng=0.3
   smooth=7.0
   Fa=0.4
-  Fb=17
-  loopP=0.40
+  Fb=64
+  loopP=0.65
   OUT_DIR=$exp_dir/out_dir_"$METHOD"
   if [[ ! -d $OUT_DIR ]]; then
     mkdir -p $OUT_DIR
@@ -175,9 +186,8 @@ if [[ $INSTRUCTION == "diarization" ]]; then
 
   ## Score
   cat $OUT_DIR/rttms/*.rttm >$OUT_DIR/sys.rttm
-  #cat $RTTM_DIR/*.rttm > $OUT_DIR/ref.rttm
-  cp $REF_RTTM $OUT_DIR/ref.rttm
-  $DIR/dscore/score.py --collar 0.25 --ignore_overlaps -r $OUT_DIR/ref.rttm -s $OUT_DIR/sys.rttm >$OUT_DIR/result_forgiving
+  cat $RTTM_DIR/*.rttm > $OUT_DIR/ref.rttm
+  $DIR/dscore/score.py --collar 0.25 --ignore_overlaps -r $OUT_DIR/ref.rttm -s $OUT_DIR/sys.rttm > $OUT_DIR/result_forgiving
   $DIR/dscore/score.py --collar 0.25 -r $OUT_DIR/ref.rttm -s $OUT_DIR/sys.rttm >$OUT_DIR/result_fair
   $DIR/dscore/score.py --collar 0.0 -r $OUT_DIR/ref.rttm -s $OUT_DIR/sys.rttm >$OUT_DIR/result_full
 fi

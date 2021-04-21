@@ -38,7 +38,7 @@ for num_iter in "${num_iter_vec[@]}"; do
                     rm -rf $exp_root/out_dir_GMM/
 
                     # sweep N0 w/ same first pass and second pass
-                    #./AMI_run_coexvecplda.sh diarization GMM $exp_root $exp_root/xvectors $exp_root/../audio_wav/ $exp_root/../AMI-diarization-setup/lists/dev.meetings.txt $exp_root/../AMI-diarization-setup/only_words/labs/dev/ $exp_root/../AMI-diarization-setup/only_words/rttms/dev/ $num_passes all.q $num_iter $M $r $N0 $N0
+                    #./AMI_run_2pass.sh diarization GMM $exp_root $exp_root/xvectors $exp_root/../audio_wav/ $exp_root/../AMI-diarization-setup/lists/dev.meetings.txt $exp_root/../AMI-diarization-setup/only_words/labs/dev/ $exp_root/../AMI-diarization-setup/only_words/rttms/dev/ $num_passes all.q $num_iter $M $r $N0 $N0
 
                     # sweep N0 on second pass, fix the first pass
                     ./AMI_run_coexvecplda.sh diarization GMM $exp_root $exp_root/xvectors $exp_root/../audio_wav/ $exp_root/../AMI-diarization-setup/lists/dev.meetings.txt $exp_root/../AMI-diarization-setup/only_words/labs/dev/ $exp_root/../AMI-diarization-setup/only_words/rttms/dev/ $num_passes all.q $num_iter $M $r $N0_firstpass $N0
