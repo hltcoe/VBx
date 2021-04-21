@@ -205,8 +205,18 @@ if __name__ == '__main__':
     parser.add_argument('--output-2nd', required=False, type=bool, default=False,
                         help='Output also second most likely speaker of VB-HMM')
 
+    parser.add_argument('--num-iter', type=int, default=30, help='# iterations for EM/GMM on first pass')
+    parser.add_argument('--M', type=int, default=7, help='# initial clusters')
+    parser.add_argument('--r', type=float, default=0.9, help='Correlation coefficient for neighboring samples in EM/GMM')
+    parser.add_argument('--N0', type=int, default=50, nargs='+', 
+                        help='Total # segments before rescaling of covariance estimate. If multiple are passed, then different N0s can be specified for each pass if using multiple passes')
+    parser.add_argument('--kmeans-only', type=int, default=0, choices=[0,1],
+                        help='if set to 1, does not run EM-GMM, only K-Means')
+
     args = parser.parse_args()
     assert 0 <= args.loopP <= 1, f'Expecting loopP between 0 and 1, got {args.loopP} instead.'
+
+    k_means_only = True if args.kmeans_only == 1 else False
 
     ###########
     #### Some input validation
@@ -226,6 +236,11 @@ if __name__ == '__main__':
     if not (num_xvecs_defined == num_segs_defined == num_pldas_defined):
         raise ValueError("Number of xvector files, segments, and pldas must be equal!")
     num_diarization_passes = num_xvecs_defined
+    #if not( (len(args.N0) == num_diarization_passes) or len(args.N0) == 1 ):
+    #    raise ValueError("N0 must be a vector of length 1 (i.e. constant N0 for both passes), or len(N0) = num_diarization_passes!")
+    N0_vec = args.N0
+    if isinstance(N0_vec, list) and len(N0_vec) == 1:
+        N0_vec = [N0_vec[0]]*num_diarization_passes
 
     recoid2labels_nthpass_1stmostlikely = {}
     recoid2labels_nthpass_2ndmostlikely = {}
@@ -296,7 +311,7 @@ if __name__ == '__main__':
                         recoid2labels_nthpass_2ndmostlikely[file_name] = labels2nd
                 elif args.init.endswith('GMM'):
                     if labels1st is None:
-                        M = 7
+                        M = args.M
                     else:
                         M = len(np.unique(labels1st))
                         # re-align labels by interpolating the labels to the required shape
@@ -316,9 +331,10 @@ if __name__ == '__main__':
                     #cov_ac = plda_psi[:args.lda_dim]
                     #labels1st = em_gmm_clean(x.T, W, B, M=M, r=0.9, num_iter=30, init_labels=labels1st)
                     # TODO: generalize this
-                    num_iter = 30 if diarization_pass_ii == 0 else 2
+                    num_iter = args.num_iter if diarization_pass_ii == 0 else 2
                     labels1st = em_gmm_clean.em_gmm_clean(fea.T, cov_wc, cov_ac,
-                                                          M=M, r=0.9, num_iter=num_iter, init_labels=labels1st)
+                                                          M=M, r=args.r, num_iter=num_iter, init_labels=labels1st,
+                                                          N0=N0_vec[diarization_pass_ii], k_means_only=k_means_only)
             else:
                 raise ValueError('Wrong option for args.initialization.')
 

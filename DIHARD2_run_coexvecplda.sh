@@ -13,19 +13,44 @@ REF_RTTM=$8
 NUM_PASS=${9:-1}
 QUEUE=${10:-none}
 
+num_iter=${11:-30}
+M=${12:-7}
+r=${13:-0.9}
+N0_firstpass=${14:-25}
+N0_secondpass=${15:-25}
+k_means_only=${16:-0}
+
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
+model_type="wb"  # can be wb or nb
+#model_type="nb"
+
 # define models and configurations for each pass
-XVEC_PLDA_MODEL1="/expscratch/amccree/pytorch/v12/ResNet/Test_sc1/models/checkpoint-latest.pth"
-XVEC_PLDA_MODEL2=$XVEC_PLDA_MODEL1
-PASS1_SEG_JUMP=200  # corresponds to ovlp=0
-PASS1_SEG_LEN=200   # corresponds to 2 sec
-PASS2_SEG_JUMP=24   # BUT Default
-PASS2_SEG_LEN=144   # BUT Default
+if [[ $model_type == "wb" ]]; then
+    XVEC_PLDA_MODEL1="/expscratch/amccree/pytorch/v12/ResNet/Test_sc0.5/models/checkpoint-latest.pth"
+    PASS1_SEG_JUMP=200
+    PASS1_SEG_LEN=200
+    XVEC_PLDA_MODEL2="/expscratch/amccree/pytorch/v12/ResNet/Test_sc0.5/models/checkpoint-latest.pth"  # TODO: update this model defn!
+    PASS2_SEG_JUMP=25
+    PASS2_SEG_LEN=125
+    KALDI_FBANK_CONF="/expscratch/kkarra/train_egs/fbank_16k.conf"
+elif [[ $model_type == "nb" ]]; then
+    #XVEC_PLDA_MODEL1="/expscratch/amccree/pytorch/v10_gauss_lnorm/sgd_768_128_but_feats/Refine_2s_old/models/checkpoint-latest.pth"
+    #XVEC_PLDA_MODEL2="/expscratch/amccree/pytorch/v10_gauss_lnorm/sgd_768_128_but_feats/Refine_1s_old/models/checkpoint-latest.pth"
+    XVEC_PLDA_MODEL1="/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test_sgd/Updated/Test_freeze_2s/models/checkpoint-latest.pth"
+    XVEC_PLDA_MODEL2="/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test_sgd/Updated/Test_freeze_1_25s/models/checkpoint-latest.pth"
+    PASS1_SEG_JUMP=200  # corresponds to ovlp=0
+    PASS1_SEG_LEN=200   # corresponds to 2 sec
+    PASS2_SEG_JUMP=25   
+    PASS2_SEG_LEN=125
+    KALDI_FBANK_CONF="/expscratch/kkarra/train_egs/fbank_8k.conf"
+else
+    echo "Unknown model_type specified: $model_type"
+    exit 1
+fi
 
 FEAT_EXTRACT_ENGINE=kaldi
 XVECTOR_EXTRACTION_ENGINE=coe
-KALDI_FBANK_CONF=/expscratch/kkarra/train_egs/fbank_16k.conf
 EMBED_DIM=128
 
 if (("$NUM_PASS" < 1)); then
@@ -128,7 +153,7 @@ if [[ $INSTRUCTION == "diarization" ]]; then
         plda_pass_model="XVEC_PLDA_MODEL$pass"
         plda_inputarg="$plda_inputarg ${!plda_pass_model}"
       done
-      cmd_str="$cmd_str $plda_inputarg --plda-format pytorch --threshold $thr --target-energy $tareng --init-smoothing $smooth --Fa $Fa --Fb $Fb --loopP $loopP"
+      cmd_str="$cmd_str $plda_inputarg --plda-format pytorch --threshold $thr --target-energy $tareng --init-smoothing $smooth --Fa $Fa --Fb $Fb --loopP $loopP --num-iter $num_iter --M $M --r $r --N0 $N0_firstpass $N0_secondpass --kmeans-only $k_means_only"
       echo $cmd_str >> $TASKFILE
 
       printf "$line " >>$UGE_TASKFILE
@@ -154,7 +179,7 @@ if [[ $INSTRUCTION == "diarization" ]]; then
 
       echo "file_uge=\${flist[\$((\${SGE_TASK_ID}-1))]}" >>$UGE_TASKFILE
       #echo "python $DIR/VBx/vbhmm.py --init $METHOD --out-rttm-dir $OUT_DIR/rttms --xvec-ark-file $xvec_dir/xvectors/\${file_uge}.ark --segments-file $xvec_dir/segments/\${file_uge} --plda-file $XVEC_PLDA_MODEL --plda-format pytorch --threshold $thr --target-energy $tareng --init-smoothing $smooth --Fa $Fa --Fb $Fb --loopP $loopP" >>$UGE_TASKFILE
-      cmd_str="python $DIR/VBx/vbhmm.py --init $METHOD --out-rttm-dir $OUT_DIR/rttms --xvec-ark-file $xvec_inputarg --segments-file $segment_inputarg --plda-file $plda_inputarg --plda-format pytorch --threshold $thr --target-energy $tareng --init-smoothing $smooth --Fa $Fa --Fb $Fb --loopP $loopP"
+      cmd_str="python $DIR/VBx/vbhmm.py --init $METHOD --out-rttm-dir $OUT_DIR/rttms --xvec-ark-file $xvec_inputarg --segments-file $segment_inputarg --plda-file $plda_inputarg --plda-format pytorch --threshold $thr --target-energy $tareng --init-smoothing $smooth --Fa $Fa --Fb $Fb --loopP $loopP --num-iter $num_iter --M $M --r $r --N0 $N0_firstpass $N0_secondpass --kmeans-only $k_means_only"
 
       echo $cmd_str >> $UGE_TASKFILE
       nl=$(wc -l <$FILE_LIST)

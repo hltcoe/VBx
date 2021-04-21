@@ -21,7 +21,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Function for leave-one-out PLDA GMM clustering
-def em_gmm_clean(x_in, cov_wc, cov_ac, M=7, r=0.9, num_iter=30, init_labels=None, verbose=1):
+def em_gmm_clean(x_in, cov_wc, cov_ac, M=7, r=0.9, num_iter=30, init_labels=None, N0=50, k_means_only=False, verbose=1):
 
     x = x_in.copy() # Don't change input
     N = x.shape[1]
@@ -48,6 +48,8 @@ def em_gmm_clean(x_in, cov_wc, cov_ac, M=7, r=0.9, num_iter=30, init_labels=None
         KM = KMeans(random_state=0,n_clusters=M,n_init=10)
         cluster_ids = KM.fit_predict(x.T)
         init_labels = cluster_ids+1
+    if k_means_only:
+        return init_labels
 
     # Initialize models with posteriors from clustering
     logger.info("Initializing GMM...")
@@ -95,6 +97,12 @@ def em_gmm_clean(x_in, cov_wc, cov_ac, M=7, r=0.9, num_iter=30, init_labels=None
             #mu_model, cov_model = GMM_update(x, cov_wc, cov_ac, p2, r)
             cnt = np.sum(p2,axis=1)
             xsum = np.dot(p2,x.T)
+            # algorithm was designed for 1-20 seg / spkr, if we have more, the uncertainties
+            # don't match training, so normalize
+            if N > N0:
+                c_sc = N0/N
+                cnt *= c_sc
+                xsum *= c_sc
             mu_model, cov_model = gmm_adapt(cnt, xsum, cov_wc, cov_ac, r)
 
             # E-step: partition data by ML
