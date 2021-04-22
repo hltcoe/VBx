@@ -30,7 +30,15 @@
 # Analysis of Speaker Diarization based on Bayesian HMM with Eigenvoice Priors,
 # IEEE Transactions on Audio, Speech and Language Processing, 2019
 # 
-# TODO: Add new paper
+#####################################################################################
+# Updates from the JHU HLTCOE Team
+#  1 - Integrated the 2-pass Leave-one-out Gaussian PLDA model into the framework
+#  2 - Added flags to control which algorithm to use for diarization (either VBx or 2-pass LGP)
+# Details of the 2-pass Leave-one-out Gaussian PLDA code can be found here:
+#   K. Karra, A. McCree, Speaker Diarization using Two-pass Leave-One-Out Gaussian PLDA
+#    Clustering of DNN Embeddings
+#   Submitted to Interspeech 2021: https://arxiv.org/pdf/2104.02469.pdf
+#####################################################################################
 
 import argparse
 import os
@@ -48,8 +56,8 @@ from VBx.diarization_lib import read_xvector_timing_dict, l2_norm, cos_similarit
 from VBx.kaldi_utils import read_plda as read_kaldi_plda
 from VBx.VB_diarization import VB_diarization
 
-import xvectors.gen_embed as coe_xvec_gen_embed
-from VBx import em_gmm_clean
+import xvectors.gen_embed as xvec_gen_embed
+from VBx import em_gmm
 
 import pandas as pd
 
@@ -77,19 +85,17 @@ def read_plda(plda_file, plda_format):
         # plda_tr.shape = (128, 128)
     elif plda_format == 'pytorch':
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
-        Ulda, d_wc, d_ac = coe_xvec_gen_embed.get_plda(plda_file)
+        Ulda, d_wc, d_ac = xvec_gen_embed.get_plda(plda_file)
         # Ulda.shape = (128, 128)
         # d_wc.shape = (128,)
         # d_ac.shape = (128,)
         # rename these variables to what is expected in the code
-        # TODO: verify this!!!
-        #  1 - if I define plda_tr = Ulda, in the example wav file, I get a DER of 8.12
-        #  2 - if I define plda_tr = Ulda.T, in the example wav file, I get a DER of 2.14 !!
         plda_tr = Ulda.T
         plda_psi = d_ac
         plda_mu = np.zeros_like(d_ac)
 
     return plda_tr, plda_psi, plda_mu
+
 
 def align_labels(labels_cfg1, segments_cfg1, segments_cfg2):
     """
@@ -165,6 +171,7 @@ def remap_label_numbers(labels):
     labels = np.asarray(list(map(lambda x: mapping[x], labels)), dtype=int)
 
     return labels
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -320,21 +327,18 @@ if __name__ == '__main__':
                         labels1st = align_labels(labels1st,
                                                  args.segments_file[diarization_pass_ii-1],
                                                  args.segments_file[diarization_pass_ii])
-                        #labels1st = remap_label_numbers(labels1st)
                     
                     fea = (x - plda_mu).dot(plda_tr.T)
-                    # No dimensionality reduction w/ LDA --> 
-                    #fea = (x - plda_mu).dot(plda_tr.T)[:, :args.lda_dim]
                     cov_wc = np.ones_like(plda_psi)
                     cov_ac = plda_psi  
                     # No dimensionality reduction w/ LDA -->  
+                    #fea = (x - plda_mu).dot(plda_tr.T)[:, :args.lda_dim]
                     #cov_ac = plda_psi[:args.lda_dim]
-                    #labels1st = em_gmm_clean(x.T, W, B, M=M, r=0.9, num_iter=30, init_labels=labels1st)
-                    # TODO: generalize this
+                    # TODO: generalize this so that user can specify num_iter for each pass
                     num_iter = args.num_iter if diarization_pass_ii == 0 else 2
-                    labels1st = em_gmm_clean.em_gmm_clean(fea.T, cov_wc, cov_ac,
-                                                          M=M, r=args.r, num_iter=num_iter, init_labels=labels1st,
-                                                          N0=N0_vec[diarization_pass_ii], k_means_only=k_means_only)
+                    labels1st = em_gmm.em_gmm(fea.T, cov_wc, cov_ac,
+                                              M=M, r=args.r, num_iter=num_iter, init_labels=labels1st,
+                                              N0=N0_vec[diarization_pass_ii], k_means_only=k_means_only)
             else:
                 raise ValueError('Wrong option for args.initialization.')
 
@@ -353,7 +357,7 @@ if __name__ == '__main__':
                     write_output(fp, out_labels, starts, ends)
 
                 if args.output_2nd and args.init.endswith('VB') and q.shape[1] > 1:
-                    labels_2ndmostlikely_nthpass = recoid2labels_nthpass_2ndmostlikely[filename]
+                    labels_2ndmostlikely_nthpass = recoid2labels_nthpass_2ndmostlikely[file_name]
                     starts, ends, out_labels2 = merge_adjacent_labels(start, end, labels_2ndmostlikely_nthpass)
                     output_rttm_dir = f'{args.out_rttm_dir}2nd'
                     mkdir_p(output_rttm_dir)

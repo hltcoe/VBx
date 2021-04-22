@@ -4,6 +4,15 @@
 # @Authors: Federico Landini
 # @Emails: landini@fit.vutbr.cz
 
+#####################################################################################
+# Updates from the JHU HLTCOE Team
+#  1 - Added additional arguments to support switching:
+#     a - the feature extraction engine (can be BUT default, or Kaldi w/ torchaudio)
+#     b - the xvector extraction engine (can be BUT default, or COE (our xvector extractor)
+#         and related options
+#####################################################################################
+
+
 # LOGIC
 #  if model is a filename, weights is ignored and backend is assumed to be torch
 #  if model is a string and weights is a file:
@@ -46,17 +55,17 @@ else
       backend=pytorch
     else
       echo "Model weights file specified ("$WEIGHTS") is not recognized as ONNX or PyTorch!"
-      exit -1
+      exit 1
     fi
   else
     echo "Model specified is a string, but weights is not a .pth or .onnx - don't know how to proceed!"
-    exit -1
+    exit 1
   fi
 fi
 if [[ "$FEAT_EXTRACT_ENGINE" == "kaldi" ]]; then
   if [ ! -f "$KALDI_FBANK_CONF" ]; then
     echo "KALDI_FBANK_CONF must be specified when FEAT_EXTRACT_ENGINE=kaldi"
-    exit -1
+    exit 1
   fi
 fi
 

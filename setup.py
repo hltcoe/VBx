@@ -57,7 +57,7 @@ setup(
     name='VBx',
     version='1.1',
     packages=find_packages(),
-    url='https://github.com/fnlandini/VBx_dev',
+    url='https://github.com/hltcoe/VBx',
     install_requires=[
         'numpy',
         'scipy',
@@ -65,7 +65,6 @@ setup(
         'numexpr',
         'h5py',
         'onnxruntime',
-        'soundfile',
         'soundfile',
         'torch',
         'kaldi_io',

@@ -22,10 +22,8 @@ model_type=${17:-"wb"}   # can be nb [narrowband] or wb [wideband]
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
+# define models and configurations for each pass
 if [[ $model_type == "wb" ]]; then
-#    XVEC_PLDA_MODEL1="/expscratch/amccree/pytorch/v12/ResNet/Test_sc0.5/models/checkpoint-latest.pth"
-#    XVEC_PLDA_MODEL2="/expscratch/amccree/pytorch/v12/ResNet/Test_sc0.5/models/checkpoint-latest.pth"
-#    KALDI_FBANK_CONF="/expscratch/kkarra/train_egs/fbank_16k.conf"
     XVEC_PLDA_MODEL1="/expscratch/kkarra/xvec_trained_models/wb/resnet_wb_sc0.5.pt"
     XVEC_PLDA_MODEL2="/expscratch/kkarra/xvec_trained_models/wb/resnet_wb_sc0.5.pt"
     KALDI_FBANK_CONF="/expscratch/kkarra/xvec_trained_models/wb/fbank_16k.conf"
@@ -34,10 +32,6 @@ if [[ $model_type == "wb" ]]; then
     PASS2_SEG_JUMP=25
     PASS2_SEG_LEN=125
 elif [[ $model_type == "nb" ]]; then
-    # define models and configurations for each pass
-#    XVEC_PLDA_MODEL1="/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test_sgd/Updated/Test_freeze_2s/models/checkpoint-latest.pth"
-#    XVEC_PLDA_MODEL2="/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test_sgd/Updated/Test_freeze_1_25s/models/checkpoint-latest.pth"
-#    KALDI_FBANK_CONF=/expscratch/kkarra/train_egs/fbank_8k.conf
     XVEC_PLDA_MODEL1="/expscratch/kkarra/xvec_trained_models/nb/tdnn_nb_2s.pt"
     XVEC_PLDA_MODEL2="/expscratch/kkarra/xvec_trained_models/nb/tdnn_nb_1_25s.pt"
     KALDI_FBANK_CONF="/expscratch/kkarra/xvec_trained_models/nb/fbank_8k.conf"

@@ -23,8 +23,6 @@ k_means_only=${16:-0}
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 # define models and configurations for each pass
-#XVEC_PLDA_MODEL1="/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test_sgd/Updated/Test_freeze_2s/models/checkpoint-latest.pth"
-#XVEC_PLDA_MODEL2="/expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test_sgd/Updated/Test_freeze_1_25s/models/checkpoint-latest.pth"
 XVEC_PLDA_MODEL1="/expscratch/kkarra/xvec_trained_models/nb/tdnn_nb_2s.pt"
 XVEC_PLDA_MODEL2="/expscratch/kkarra/xvec_trained_models/nb/tdnn_nb_1_25s.pt"
 KALDI_FBANK_CONF="/expscratch/kkarra/xvec_trained_models/nb/fbank_8k.conf"
