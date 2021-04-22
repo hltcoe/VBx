@@ -23,24 +23,28 @@ reextract_xvectors=0          # set to 1 if you want to reextract xvectors
                               # (in case they are stale, model update, etc ...)
 
 
-# CALLHOME Split2
-exp_root="${callhome_exp_rootdir}/exp_2pass_nb_nb_split2"
+: '
+# CALLHOME ALL --  without N0
+# simulate original algorithm without N0, by setting N0 to be really large
+#  which nullfies the Neff correction factor
+N0_firstpass_simulate=250000
+N0_secondpass_simulate=250000
+exp_root="${callhome_exp_rootdir}/exp_2pass_nb_nb_all_withoutN0"
 if [[ $reextract_xvectors -ge 1 || ! -d $exp_root/xvectors_1 || ! -d $exp_root/xvectors_2  ]]; then
     rm -rf $exp_root
-    ../CALLHOME_run_2pass.sh xvectors GMM $exp_root $exp_root/xvectors $exp_root/../audio_wav $exp_root/../flist.txt $exp_root/../sad_labels  $exp_root/../fullref.rttm $num_pass_xvec_extract all.q $niter $M $r $N0_firstpass $N0_secondpass $k_means_only nb
+    ../CALLHOME_run_2pass.sh xvectors GMM $exp_root $exp_root/xvectors $exp_root/../audio_wav $exp_root/../flist.txt $exp_root/../sad_labels  $exp_root/../fullref.rttm $num_pass_xvec_extract all.q $niter $M $r $N0_firstpass_simulate $N0_secondpass_simulate $k_means_only
 fi
 rm -rf $exp_root/out_dir_GMM
-../CALLHOME_run_2pass.sh diarization GMM $exp_root $exp_root/xvectors $exp_root/../audio_wav $exp_root/../sre2000-key/clsp/callhome2.list $exp_root/../sad_labels  $exp_root/../sre2000-key/clsp/callhome2.ref.rttm $num_pass all.q $niter $M $r $N0_firstpass $N0_secondpass $kmeans_only nb
+../CALLHOME_run_2pass.sh diarization GMM $exp_root $exp_root/xvectors $exp_root/../audio_wav $exp_root/../flist.txt $exp_root/../sad_labels  $exp_root/../fullref.rttm $num_pass all.q $niter $M $r $N0_firstpass_simulate $N0_secondpass_simulate $k_means_only 
 
-# CALLHOME ALL
+# CALLHOME ALL --  with N0
 exp_root="${callhome_exp_rootdir}/exp_2pass_nb_nb_all"
 if [[ $reextract_xvectors -ge 1 || ! -d $exp_root/xvectors_1 || ! -d $exp_root/xvectors_2  ]]; then
     rm -rf $exp_root
-    ../CALLHOME_run_2pass.sh xvectors GMM $exp_root $exp_root/xvectors $exp_root/../audio_wav $exp_root/../flist.txt $exp_root/../sad_labels  $exp_root/../fullref.rttm $num_pass_xvec_extract all.q $niter $M $r $N0_firstpass $N0_secondpass $k_means_only nb
+    ../CALLHOME_run_2pass.sh xvectors GMM $exp_root $exp_root/xvectors $exp_root/../audio_wav $exp_root/../flist.txt $exp_root/../sad_labels  $exp_root/../fullref.rttm $num_pass_xvec_extract all.q $niter $M $r $N0_firstpass $N0_secondpass $k_means_only
 fi
 rm -rf $exp_root/out_dir_GMM
-../CALLHOME_run_2pass.sh diarization GMM $exp_root $exp_root/xvectors $exp_root/../audio_wav $exp_root/../flist.txt $exp_root/../sad_labels  $exp_root/../fullref.rttm $num_pass all.q $niter $M $r $N0_firstpass $N0_secondpass $k_means_only nb
-
+../CALLHOME_run_2pass.sh diarization GMM $exp_root $exp_root/xvectors $exp_root/../audio_wav $exp_root/../flist.txt $exp_root/../sad_labels  $exp_root/../fullref.rttm $num_pass all.q $niter $M $r $N0_firstpass $N0_secondpass $k_means_only
 
 # Dihard2 - Dev
 exp_root="${dihard_exp_rootdir}/exp_2pass_nb_nb_dev"
@@ -68,6 +72,7 @@ if [[ $reextract_xvectors -ge 1 || ! -d $exp_root/xvectors_1 || ! -d $exp_root/x
 fi
 rm -rf $exp_root/out_dir_GMM
 ../AMI_run_2pass.sh diarization GMM $exp_root $exp_root/xvectors $exp_root/../audio_wav $exp_root/../AMI-diarization-setup/lists/dev.meetings.txt $exp_root/../AMI-diarization-setup/only_words/labs/dev/ $exp_root/../AMI-diarization-setup/only_words/rttms/dev/ $num_pass all.q $niter $M $r $N0_firstpass $N0_secondpass $k_means_only nb
+'
 
 # AMI - Test
 exp_root="${ami_exp_rootdir}/exp_2pass_nb_nb_test_onlywords"
@@ -95,4 +100,4 @@ if [[ $reextract_xvectors -ge 1 || ! -d $exp_root/xvectors_1 || ! -d $exp_root/x
     ../AMI_run_2pass.sh xvectors GMM $exp_root $exp_root/xvectors $exp_root/../audio_wav $exp_root/../AMI-diarization-setup/lists/test.meetings.txt $exp_root/../AMI-diarization-setup/only_words/labs/test/ $exp_root/../AMI-diarization-setup/only_words/rttms/test/ $num_pass_xvec_extract all.q $niter $M $r $N0_firstpass $N0_secondpass $k_means_only nb
 fi
 rm -rf $exp_root/out_dir_GMM
-../AMI_run_2pass.sh diarization GMM $exp_root $exp_root/xvectors $exp_root/../audio_wav $exp_root/../AMI-diarization-setup/lists/test.meetings.txt $exp_root/../AMI-diarization-setup/only_words/labs/test/ $exp_root/../AMI-diarization-setup/only_words/rttms/test/ $num_pass all.q $niter $M $r $N0_firstpass $N0_secondpass $k_means_only nb
+../AMI_run_2pass.sh diarization GMM $exp_root $exp_root/xvectors $exp_root/../audio_wav $exp_root/../AMI-diarization-setup/lists/test.meetings.txt $exp_root/../AMI-diarization-setup/only_words/labs/test/ $exp_root/../AMI-diarization-setup/only_words/rttms/test/ $num_pass all.q $niter $M $r $N0_firstpass $N0_secondpass $k_means_only nb 
