@@ -73,26 +73,26 @@ K. Karra, A. McCree: [Speaker Diarization using Two-pass Leave-One-Out Gaussian 
 We present here the Diarization Error Rates (DER) for our systems for the different datasets and different evaluation protocols. A more thorough discussion on the protocols and results can be found in the paper.
 
 
-###CALLHOME
+### CALLHOME
 |           	| VBx   	| 2-pass LGP 	|
 |-----------	|-------	|------------	|
 | **Forgiving** 	| 4.42  	| 3.92       	|
 | **Fair**      	| 14.21 	| 13.82      	|
 | **Full**      	| 21.77 	| 21.16      	|
 
-###DIHARD II (Dev)
+### DIHARD II (Dev)
 |      	| VBx   	| 2-pass LGP (NB) 	| 2-pass LGP (WB) 	|
 |------	|-------	|-----------------	|-----------------	|
 | Fair 	| 12.23 	| 13.39           	| 11.73           	|
 | Full 	| 18.19 	| 19.21           	| 17.8            	|
 
-###DIHARD II (Eval)
+### DIHARD II (Eval)
 |      	| VBx   	| 2-pass LGP (NB) 	| 2-pass LGP (WB) 	|
 |------	|-------	|-----------------	|-----------------	|
 | Fair 	| 12.29 	| 15.03           	| 12.66           	|
 | Full 	| 18.55 	| 20.83           	| 18.76            	|
 
-###AMI Beamformed (Dev)
+### AMI Beamformed (Dev)
 |      	| VBx   	| 2-pass LGP (NB) 	| 2-pass LGP (WB) 	|
 |------	|-------	|-----------------	|-----------------	|
 | Forgiving 	| 2.80 	|  3.18      	|  4.33          	|
@@ -100,7 +100,7 @@ We present here the Diarization Error Rates (DER) for our systems for the differ
 | Full 	        | 17.66 	|  18.56    |  18.94           	|
 
 
-###AMI Beamformed (Eval)
+### AMI Beamformed (Eval)
 |      	| VBx   	| 2-pass LGP (NB) 	| 2-pass LGP (WB) 	|
 |------	|-------	|-----------------	|-----------------	|
 | Forgiving 	| 3.90 	    |   3.91         |   3.88       |
@@ -108,7 +108,7 @@ We present here the Diarization Error Rates (DER) for our systems for the differ
 | Full 	        | 20.84 	|   19.95        |  19.84       |
 
 
-###AMI Mix-Headset (Dev)
+### AMI Mix-Headset (Dev)
 |      	| VBx   	| 2-pass LGP (NB) 	| 2-pass LGP (WB) 	|
 |------	|-------	|-----------------	|-----------------	|
 | Forgiving 	| 1.56 	    |  2.1       |  2.00          	|
@@ -116,7 +116,7 @@ We present here the Diarization Error Rates (DER) for our systems for the differ
 | Full 	        | 16.33 	|  16.93     | 16.74            |
 
 
-###AMI Mix-Headset (Eval)
+### AMI Mix-Headset (Eval)
 |      	| VBx   	| 2-pass LGP (NB) 	| 2-pass LGP (WB) 	|
 |------	|-------	|-----------------	|-----------------	|
 | Forgiving 	| 2.10 	    | 1.76         	 |   2.13       |
