@@ -23,7 +23,6 @@ reextract_xvectors=0          # set to 1 if you want to reextract xvectors
                               # (in case they are stale, model update, etc ...)
 
 
-: '
 # CALLHOME ALL --  without N0
 # simulate original algorithm without N0, by setting N0 to be really large
 #  which nullfies the Neff correction factor
@@ -72,7 +71,6 @@ if [[ $reextract_xvectors -ge 1 || ! -d $exp_root/xvectors_1 || ! -d $exp_root/x
 fi
 rm -rf $exp_root/out_dir_GMM
 ../AMI_run_2pass.sh diarization GMM $exp_root $exp_root/xvectors $exp_root/../audio_wav $exp_root/../AMI-diarization-setup/lists/dev.meetings.txt $exp_root/../AMI-diarization-setup/only_words/labs/dev/ $exp_root/../AMI-diarization-setup/only_words/rttms/dev/ $num_pass all.q $niter $M $r $N0_firstpass $N0_secondpass $k_means_only nb
-'
 
 # AMI - Test
 exp_root="${ami_exp_rootdir}/exp_2pass_nb_nb_test_onlywords"
