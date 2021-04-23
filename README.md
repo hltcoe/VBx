@@ -1,5 +1,5 @@
 
-# VBHMM x-vectors Diarization (aka VBx)
+# VBHMM x-vectors Diarization (aka VBx) and 2-pass Leave-One-Out Gaussian PLDA (2-pass LGP)
 
 Diarization recipe for CALLHOME, AMI and DIHARD II by Brno University of Technology. \
 The recipe consists of 
