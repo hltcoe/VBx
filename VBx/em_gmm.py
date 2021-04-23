@@ -1,11 +1,18 @@
 #!/usr/bin/env python
 from __future__ import print_function
 
-# 
+#####################################################################################
+#
 # Python function for leave-one-out PLDA GMM clustering
 #
-# $Id: em_gmm_clean.py,v 1.3 2021/01/25 22:26:26 amccree Exp amccree $
+# Details of the 2-pass Leave-one-out Gaussian PLDA code can be found here:
+#   K. Karra, A. McCree, Speaker Diarization using Two-pass Leave-One-Out Gaussian PLDA
+#    Clustering of DNN Embeddings
+#   Submitted to Interspeech 2021: https://arxiv.org/pdf/2104.02469.pdf
 #
+# $Id: em_gmm.py,v 1.3 2021/01/25 22:26:26 amccree Exp amccree $
+#####################################################################################
+
 
 import numpy as np
 import scipy
@@ -20,11 +27,15 @@ from sklearn.cluster import KMeans
 import logging
 logger = logging.getLogger(__name__)
 
+
 # Function for leave-one-out PLDA GMM clustering
-def em_gmm_clean(x_in, cov_wc, cov_ac, M=7, r=0.9, num_iter=30, init_labels=None, verbose=1):
+def em_gmm(x_in, cov_wc, cov_ac, M=7, r=0.9, num_iter=30, init_labels=None, N0=50, k_means_only=False, verbose=1):
 
     x = x_in.copy() # Don't change input
     N = x.shape[1]
+    if M > N/2:
+        M = N//2
+        logger.warning(" M too large for N, reset to %d" % (M,))
     logger.info("EM GMM, M %d N %d" % (M,N))
 
     # Joint diagonalization if not already diagonalized
@@ -45,6 +56,8 @@ def em_gmm_clean(x_in, cov_wc, cov_ac, M=7, r=0.9, num_iter=30, init_labels=None
         KM = KMeans(random_state=0,n_clusters=M,n_init=10)
         cluster_ids = KM.fit_predict(x.T)
         init_labels = cluster_ids+1
+    if k_means_only:
+        return init_labels
 
     # Initialize models with posteriors from clustering
     logger.info("Initializing GMM...")
@@ -92,6 +105,12 @@ def em_gmm_clean(x_in, cov_wc, cov_ac, M=7, r=0.9, num_iter=30, init_labels=None
             #mu_model, cov_model = GMM_update(x, cov_wc, cov_ac, p2, r)
             cnt = np.sum(p2,axis=1)
             xsum = np.dot(p2,x.T)
+            # algorithm was designed for 1-20 seg / spkr, if we have more, the uncertainties
+            # don't match training, so normalize
+            if N > N0:
+                c_sc = N0/N
+                cnt *= c_sc
+                xsum *= c_sc
             mu_model, cov_model = gmm_adapt(cnt, xsum, cov_wc, cov_ac, r)
 
             # E-step: partition data by ML
@@ -113,6 +132,7 @@ def em_gmm_clean(x_in, cov_wc, cov_ac, M=7, r=0.9, num_iter=30, init_labels=None
     # Return hard cluster labels (could be soft)
     lab = np.argmax(posts,0)+1
     return lab
+
 
 # Function for Bayesian adaptation of Gaussian model
 # Enroll type can be ML, MAP, or Bayes
@@ -151,6 +171,7 @@ def gmm_adapt(cnt, xsum, cov_wc, cov_ac, r=0, enroll_type='Bayes'):
     # Return
     return mu_model, cov_model
 
+
 def gmm_score(X, means, covars):
     """Compute Gaussian log-density at X for a diagonal model"""
 
@@ -163,6 +184,7 @@ def gmm_score(X, means, covars):
     #LLs -= 0.5 * (n_dim * np.log(2 * np.pi))
 
     return LLs
+
 
 # Function for posteriors of GMM models
 def GMM_post(x, mu_model, cov_model, cov_wc, prior, LL_oos=0):
@@ -182,6 +204,7 @@ def GMM_post(x, mu_model, cov_model, cov_wc, prior, LL_oos=0):
     # Return posteriors/LLRs and sum
     return posts, log_sum
 
+
 # Function to update GMM models
 def GMM_update(x, cov_wc, cov_ac, posts, r=0):
 
@@ -199,6 +222,7 @@ def GMM_update(x, cov_wc, cov_ac, posts, r=0):
         cov_model.append(cov)
 
     return mu_model, cov_model
+
 
 # Function for Bayesian adaptation of Gaussian model
 # Note: no longer computes predictive distribution, just posterior
@@ -236,6 +260,7 @@ def gauss_adapt(cnt, xsum, cov_wc, cov_ac, r=0):
     # Return
     return mu_model, cov_model
 
+
 # Function for effective number of counts
 def compute_Neff(cnt, r):
 
@@ -246,6 +271,7 @@ def compute_Neff(cnt, r):
         Neff = (cnt*(1-r)+2*r) / (1+r)
 
     return Neff
+
 
 # Function to compute stats of Gaussians from data and posteriors
 def gauss_stats(x, posts=0):
@@ -260,6 +286,7 @@ def gauss_stats(x, posts=0):
 
     # Return stats
     return cnts, xsums
+
 
 # Function for Gaussian scoring
 def gauss_score(x, mu_model, cov_model):
@@ -284,6 +311,7 @@ def gauss_score(x, mu_model, cov_model):
     # Return log likelihood
     return LL
 
+
 # Function for single cut scoring, no model (random speaker)
 def gauss_open_score(x, cov_ac, cov_wc):
 
@@ -301,6 +329,7 @@ def form_inv_covar_reg(A):
 
     # Return 
     return inv_A, logdet_A
+
 
 # Convert LLs to posteriors
 def LL_to_post_old(LLRs, prior=None):
@@ -322,6 +351,7 @@ def LL_to_post_old(LLRs, prior=None):
 
     return posts, log_sum
 
+
 # Convert LLs to posteriors
 def LL_to_post(LLs, prior=None):
 
@@ -340,6 +370,7 @@ def LL_to_post(LLs, prior=None):
     log_sum = np.sum(log_denom)
 
     return posts, log_sum
+
 
 # Form LDA for dimension reduction, using diagonalizing transform
 # After this, cov_wc = I and cov_ac = diagonal, sorted
@@ -365,6 +396,7 @@ def form_lda(cov_wc_in, cov_ac_in, LDA_dim):
     Ulda = np.dot(W,evec1)
 
     return Ulda.astype(cov_wc.dtype)
+
 
 # Compute largest sorted eigenvalues and eigenvectors of square matrix
 def eig_sort(mat_in, rank=0):

@@ -4,6 +4,13 @@
 # @Authors: Lukas Burget, Federico Landini, Jan Profant
 # @Emails: burget@fit.vutbr.cz, landini@fit.vutbr.cz, jan.profant@phonexia.com
 
+#####################################################################################
+# Updates from the JHU HLTCOE Team
+#  1 - Integrated Kaldi compliance feature extraction using torchaudio
+#  2 - added flags to allow user to choose which feature extraction they want to use
+#####################################################################################
+
+
 import argparse
 import logging
 import os
@@ -20,7 +27,7 @@ from models.resnet import *
 
 import torchaudio
 import xvectors.gen_embed as coe_xvec_gen_embed
-from tqdm.auto import tqdm
+
 import socket
 
 torch.backends.cudnn.enabled = False
@@ -234,19 +241,11 @@ if __name__ == '__main__':
                             n_feats, feat_dim = kaldi_feats.shape
                             frameshift_ms = fbank_config_dict.get('frame-shift', 10)
 
-                            # TODO: discuss with Alan whether this is necessary.  It was failing on the callhome
-                            #  with: max(abs(expected_nfeats-nfeats))=8, but mean(abs(expected_nfeats-nfeats))=2
-                            #frameshift_samps = int(frameshift_ms/1000. * samplerate)
-                            #expected_nfeats = len(signal)/frameshift_samps
-                            #nfeats_tol = 2
-                            #assert abs(n_feats-expected_nfeats) < nfeats_tol, \
-                            #    "Number of generated features is not within expected range! n_feats=%d n_expected_feats=%d" % (n_feats, expected_nfeats)
-
                         elif args.feat_extraction_engine.lower() == 'but':
                             np.random.seed(3)  # for reproducibility
                             signal = features.add_dither((signal * 2 ** 15).astype(int))
 
-                        for segnum in tqdm(range(len(labs))):
+                        for segnum in range(len(labs)):
                             seg = signal[labs[segnum, 0]:labs[segnum, 1]]
                             if seg.shape[0] > 0.01 * samplerate:  # process segment only if longer than 0.01s
                                 if args.feat_extraction_engine.lower() == 'but':
