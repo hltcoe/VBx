@@ -11,6 +11,10 @@ The recipe consists of
 More details about the full recipe in\
 F. Landini, J. Profant, M. Diez, L. Burget: [Bayesian HMM clustering of x-vector sequences (VBx) in speaker diarization: theory, implementation and analysis on standard tasks](https://arxiv.org/abs/2012.14952)
 
+If you are interested in the original version of VBx (prepared for the Second DIHARD Challenge), please refer to the [corresponding branch](https://github.com/BUTSpeechFIT/VBx/tree/v1.0_DIHARDII).\
+If you are interested in the VBx recipe prepared for the track 4 of VoxSRC-20 Challenge (on VoxConverse), please refer to the [corresponding branch](https://github.com/BUTSpeechFIT/VBx/tree/v1.1_VoxConverse2020).
+
+
 ### Updates from the JHU HLTCOE Team
  1. Integrated 2-pass Leave-One-Out Gaussian PLDA (2-pass LGP) diarization algorithm into the VBx code infrastructure
  2. Updated feature extraction pipeline to support using kaldi features (using torchaudio as the backend)
@@ -133,4 +137,4 @@ Licensed under the Apache License, Version 2.0 (the "License"); you may not use 
 ## Contact
 If you have any comment or question, please contact landini@fit.vutbr.cz or mireia@fit.vutbr.cz
 
-For questions regarding the 2-pass LGP algorithm, please contact: kiran.karra@jhuapl.edu 
+For questions regarding the 2-pass LGP algorithm, please create a GitHub issue.
