@@ -18,7 +18,7 @@ k_means_only=0                # if set to 1, only runs k-means clustering with n
                               # useful for understanding effect of initial clustering on
                               # end-to-end diarization error rate
 
-reextract_xvectors=0          # set to 1 if you want to reextract xvectors
+reextract_xvectors=1          # set to 1 if you want to reextract xvectors
                               # (in case they are stale, model update, etc ...)
 
 # Dihard2 - Dev
