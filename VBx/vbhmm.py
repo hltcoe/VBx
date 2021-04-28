@@ -212,7 +212,7 @@ if __name__ == '__main__':
     parser.add_argument('--num-iter', type=int, default=30, help='# iterations for EM/GMM on first pass')
     parser.add_argument('--M', type=int, default=7, help='# initial clusters')
     parser.add_argument('--r', type=float, default=0.9, help='Correlation coefficient for neighboring samples in EM/GMM')
-    parser.add_argument('--N0', type=int, default=50, nargs='+', 
+    parser.add_argument('--N0', type=int, default=[50], nargs='+', 
                         help='Total # segments before rescaling of covariance estimate. If multiple are passed, then different N0s can be specified for each pass if using multiple passes')
     parser.add_argument('--kmeans-only', type=int, default=0, choices=[0,1],
                         help='if set to 1, does not run EM-GMM, only K-Means')

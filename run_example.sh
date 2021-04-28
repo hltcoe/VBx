@@ -15,11 +15,12 @@ do
           --in-wav-dir example/audios/16k \
           --out-ark-fn exp/${filename}.ark \
           --out-seg-fn exp/${filename}.seg \
-          --model-file /expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test/models/checkpoint-epoch400.pth \
+          --model-file /expscratch/kkarra/xvec_trained_models/wb/resnet_wb_sc0.5.pt \
           --embed-dim 128 \
           --backend pytorch \
           --feat-extraction-engine kaldi \
-          --kaldi-fbank-conf /expscratch/kkarra/train_egs/fbank_8k.conf
+          --xvector-extractor coe \
+          --kaldi-fbank-conf /expscratch/kkarra/train_egs/fbank_16k.conf
  
           # using COE xvectors 
           #--model-file /expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test/models/checkpoint-epoch400.pth \
@@ -34,7 +35,7 @@ do
           #--backend onnx \
  
       # run variational bayes on top of x-vectors
-      python VBx/vbhmm.py --init AHC+VB \
+      python VBx/vbhmm.py --init GMM \
           --out-rttm-dir exp \
           --xvec-ark-file exp/${filename}.ark \
           --segments-file exp/${filename}.seg \
@@ -42,7 +43,8 @@ do
           --Fa 0.3 \
           --Fb 17 \
           --loopP 0.99 \
-          --plda-file /expscratch/amccree/pytorch/v10_gauss_lnorm/adam_768_128_postvox/Test/models/checkpoint-epoch400.pth \
+          --N0 30 \
+          --plda-file /expscratch/kkarra/xvec_trained_models/wb/resnet_wb_sc0.5.pt \
           --plda-format pytorch
 
           # using the COE plda
